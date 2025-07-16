@@ -138,24 +138,61 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 					struct bio *original_bio,
 					struct lz4e_dev *lzdev)
 {
-	struct block_device *bdev = lzdev->under_dev->bdev;
-	struct bio_set *bset = lzdev->under_dev->bset;
 	struct lz4e_stats *stats_to_update = lzdev->write_stats;
+	struct lz4e_chunk *chunk;
 	struct bio *new_bio;
+	blk_status_t status;
+	int ret;
 
-	new_bio = bio_alloc_clone(bdev, original_bio, GFP_NOIO, bset);
-	if (!new_bio) {
-		LZ4E_PR_ERR("failed to clone original bio");
+	chunk = lz4e_chunk_alloc((int)original_bio->bi_iter.bi_size);
+	if (!chunk) {
+		LZ4E_PR_ERR("failed to allocate chunk");
 		return BLK_STS_RESOURCE;
 	}
 
-	new_bio->bi_vcnt = original_bio->bi_vcnt;
+	lz4e_buf_copy_from_bio(&chunk->src_buf, original_bio);
+
+	ret = lz4e_chunk_compress(chunk);
+	if (ret) {
+		LZ4E_PR_ERR("failed to compress data");
+		status = BLK_STS_IOERR;
+		goto free_chunk;
+	}
+
+	ret = lz4e_chunk_decompress(chunk);
+	if (ret) {
+		LZ4E_PR_ERR("failed to decompress data");
+		status = BLK_STS_IOERR;
+		goto free_chunk;
+	}
+
+	new_bio = lz4e_alloc_new_bio(original_bio, lzdev->under_dev);
+	if (!new_bio) {
+		LZ4E_PR_ERR("failed to allocate new bio");
+		status = BLK_STS_RESOURCE;
+		goto free_chunk;
+	}
+
+	ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
+	if (ret) {
+		LZ4E_PR_ERR("failed to add buffer to bio");
+		status = BLK_STS_IOERR;
+		goto put_new_bio;
+	}
+
 	lzreq->original_bio = original_bio;
 	lzreq->new_bio = new_bio;
 	lzreq->stats_to_update = stats_to_update;
+	lzreq->chunk = chunk;
 
 	LZ4E_PR_DEBUG("initialized write request");
 	return BLK_STS_OK;
+
+put_new_bio:
+	bio_put(new_bio);
+free_chunk:
+	lz4e_chunk_free(chunk);
+	return status;
 }
 
 blk_status_t lz4e_req_init(struct lz4e_req *lzreq, struct bio *original_bio,
