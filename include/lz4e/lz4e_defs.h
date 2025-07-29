@@ -100,7 +100,7 @@ typedef uintptr_t uptrval;
 #define GB (1U << 30)
 
 #define MAX_DISTANCE LZ4_DISTANCE_MAX
-#define STEPSIZE sizeof(size_t)
+#define STEPSIZE 8
 
 #define ML_BITS	4
 #define ML_MASK	((1U << ML_BITS) - 1)
@@ -116,7 +116,7 @@ typedef uintptr_t uptrval;
 /*
  * advance bvec iterator by exactly 1 byte
  */
-static FORCE_INLINE void LZ4E_bvec_advance1(const struct bio_vec *sgBuf,
+static FORCE_INLINE void LZ4E_iter_advance1(const struct bio_vec *sgBuf,
 		struct bvec_iter *iter)
 {
 	unsigned idx = iter->bi_idx;
@@ -140,7 +140,7 @@ static FORCE_INLINE void LZ4E_bvec_advance1(const struct bio_vec *sgBuf,
 /*
  * roll bvec iterator back by exactly 1 byte
  */
-static FORCE_INLINE void LZ4E_bvec_rollback1(const struct bio_vec *sgBuf,
+static FORCE_INLINE void LZ4E_iter_rollback1(const struct bio_vec *sgBuf,
 		struct bvec_iter *iter)
 {
 	unsigned idx = iter->bi_idx;
@@ -446,6 +446,30 @@ static FORCE_INLINE void LZ4E_write64(struct bio_vec *to, const U64 value,
 	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 8);
 }
 
+static FORCE_INLINE void LZ4E_copy8(struct bio_vec *dst, const struct bio_vec *src,
+		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+{
+	BYTE val = LZ4E_read8(src, srcStart);
+
+	LZ4E_write8(dst, val, dstStart);
+}
+
+static FORCE_INLINE void LZ4E_copy16(struct bio_vec *dst, const struct bio_vec *src,
+		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+{
+	U16 val = LZ4E_read16(src, srcStart);
+
+	LZ4E_write16(dst, val, dstStart);
+}
+
+static FORCE_INLINE void LZ4E_copy32(struct bio_vec *dst, const struct bio_vec *src,
+		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+{
+	U32 val = LZ4E_read32(src, srcStart);
+
+	LZ4E_write32(dst, val, dstStart);
+}
+
 static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *src,
 		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
 {
@@ -483,6 +507,38 @@ static FORCE_INLINE void LZ4E_wildCopy(struct bio_vec *dst, const struct bio_vec
 		bvec_iter_advance(dst, &dstIter, WILDCOPYLENGTH);
 		len -= WILDCOPYLENGTH;
 	} while (len > 0);
+}
+
+static FORCE_INLINE void LZ4E_memcpy(struct bio_vec *dst, const struct bio_vec *src,
+	const struct bvec_iter dstStart, const struct bvec_iter srcStart, size_t len)
+{
+	struct bvec_iter srcIter = srcStart;
+	struct bvec_iter dstIter = dstStart;
+
+	for (int i = 0; i < len / 8; ++i) {
+		LZ4E_copy64(dst, src, dstIter, srcIter);
+		bvec_iter_advance(src, &srcIter, 8);
+		bvec_iter_advance(dst, &dstIter, 8);
+	}
+
+	len %= 8;
+
+	if (len >= 4) {
+		LZ4E_copy32(dst, src, dstIter, srcIter);
+		bvec_iter_advance(src, &srcIter, 4);
+		bvec_iter_advance(dst, &dstIter, 4);
+		len -= 4;
+	}
+
+	if (len >= 2) {
+		LZ4E_copy16(dst, src, dstIter, srcIter);
+		bvec_iter_advance(src, &srcIter, 2);
+		bvec_iter_advance(dst, &dstIter, 2);
+		len -= 2;
+	}
+
+	if (len)
+		LZ4E_copy8(dst, src, dstIter, srcIter);
 }
 
 static FORCE_INLINE unsigned int LZ4E_NbCommonBytes(register size_t val)
