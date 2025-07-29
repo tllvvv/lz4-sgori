@@ -33,6 +33,8 @@
 /*-************************************
  *	Dependencies
  **************************************/
+#include <linux/bio.h>
+#include <linux/bvec.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/unaligned.h>
@@ -169,6 +171,24 @@ static FORCE_INLINE const BYTE *LZ4_getPosition(
 	return LZ4_getPositionOnHash(h, tableBase, tableType, srcBase);
 }
 
+static bool LZ4E_fillBvRemSize(
+	U32 *bvRemSize,
+	const struct bio_vec *sgBuf,
+	const struct bvec_iter start)
+{
+	struct bvec_iter iter;
+	struct bio_vec curBvec;
+
+	for_each_bvec(curBvec, sgBuf, iter, start) {
+		if (iter.bi_idx >= BIO_MAX_VECS)
+			return false;
+
+		bvRemSize[iter.bi_idx] = iter.bi_size;
+	}
+
+	return true;
+}
+
 
 /*
  * LZ4_compress_generic() :
@@ -176,30 +196,24 @@ static FORCE_INLINE const BYTE *LZ4_getPosition(
  */
 static FORCE_INLINE int LZ4_compress_generic(
 	LZ4_stream_t_internal * const dictPtr,
-	const char * const source,
-	char * const dest,
-	const int inputSize,
-	const int maxOutputSize,
+	const struct bio_vec * const srcSg,
+	struct bio_vec * const dstSg,
+	struct bvec_iter * const srcIter,
+	struct bvec_iter * const dstIter,
 	const limitedOutput_directive outputLimited,
 	const tableType_t tableType,
 	const dict_directive dict,			// NOTE:(kogora): always noDict
 	const dictIssue_directive dictIssue,		// NOTE:(kogora): always noDictIssue
 	const U32 acceleration)
 {
-	const BYTE *ip = (const BYTE *) source;
-	const BYTE *base;
-	const BYTE *lowLimit;
-	const BYTE * const lowRefLimit = ip - dictPtr->dictSize;
+	const unsigned inputSize = srcIter->bi_size;
+	const unsigned maxOutputSize = dstIter->bi_size;
+	const struct bvec_iter srcStart = *srcIter;
+	struct bvec_iter anchor = srcStart;
+
 	const BYTE * const dictionary = dictPtr->dictionary;
 	const BYTE * const dictEnd = dictionary + dictPtr->dictSize;
-	const size_t dictDelta = dictEnd - (const BYTE *)source;
-	const BYTE *anchor = (const BYTE *) source;
-	const BYTE * const iend = ip + inputSize;
-	const BYTE * const mflimit = iend - MFLIMIT;
-	const BYTE * const matchlimit = iend - LASTLITERALS;
-
-	BYTE *op = (BYTE *) dest;
-	BYTE * const olimit = op + maxOutputSize;
+	U32 * const bvRemSize = &dictPtr->bvRemSize;
 
 	U32 forwardH;
 	size_t refDelta = 0;
@@ -210,21 +224,21 @@ static FORCE_INLINE int LZ4_compress_generic(
 		return 0;
 	}
 
-	switch (dict) {
-	case noDict:
-	default:
-		base = (const BYTE *)source;
-		lowLimit = (const BYTE *)source;
-		break;
-	case withPrefix64k:
-		base = (const BYTE *)source - dictPtr->currentOffset;
-		lowLimit = (const BYTE *)source - dictPtr->dictSize;
-		break;
-	case usingExtDict:
-		base = (const BYTE *)source - dictPtr->currentOffset;
-		lowLimit = (const BYTE *)source;
-		break;
-	}
+//	switch (dict) {
+//	case noDict:
+//	default:
+//		base = (const BYTE *)source;
+//		lowLimit = (const BYTE *)source;
+//		break;
+//	case withPrefix64k:
+//		base = (const BYTE *)source - dictPtr->currentOffset;
+//		lowLimit = (const BYTE *)source - dictPtr->dictSize;
+//		break;
+//	case usingExtDict:
+//		base = (const BYTE *)source - dictPtr->currentOffset;
+//		lowLimit = (const BYTE *)source;
+//		break;
+//	}
 
 	if ((tableType == byU16)
 		&& (inputSize >= LZ4_64Klimit)) {
@@ -235,6 +249,12 @@ static FORCE_INLINE int LZ4_compress_generic(
 	if (inputSize < LZ4_minLength) {
 		/* Input too small, no compression (all literals) */
 		goto _last_literals;
+	}
+
+	/* Fill number of bytes remaining for each bvec */
+	if (!LZ4E_fillBvRemSize(bvRemSize, srcSg, srcStart)) {
+		/* Too many bvecs */
+		return 0;
 	}
 
 	/* First Byte */
@@ -458,13 +478,16 @@ _last_literals:
 
 static int LZ4E_compress_fast_extState(
 	void *state,
-	const char *source,
-	char *dest,
-	int inputSize,
-	int maxOutputSize,
+	const struct bio_vec *srcSg,
+	struct bio_vec *dstSg,
+	struct bvec_iter *srcIter,
+	struct bvec_iter *dstIter,
 	int acceleration)
 {
 	LZ4_stream_t_internal *ctx = &((LZ4_stream_t *)state)->internal_donotuse;
+	const unsigned inputSize = srcIter->bi_size;
+	const unsigned maxOutputSize = dstIter->bi_size;
+
 #if LZ4_ARCH64
 	const tableType_t tableType = byU32;
 #else
@@ -501,11 +524,9 @@ static int LZ4E_compress_fast_extState(
 	}
 }
 
-int LZ4E_compress_default(const char *source, char *dest, int inputSize,
-	int maxOutputSize, void *wrkmem)
+int LZ4E_compress_default(const struct bio_vec *srcSg, struct bio_vec *dstSg,
+	struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem)
 {
-	return LZ4E_compress_fast_extState(wrkmem, source, dest, inputSize,
-		maxOutputSize, LZ4_ACCELERATION_DEFAULT);
+	return LZ4E_compress_fast_extState(wrkmem, srcSg, dstSg, srcIter,
+		dstIter, LZ4_ACCELERATION_DEFAULT);
 }
-
-

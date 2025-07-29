@@ -37,9 +37,12 @@
 
 // TODO:(kogora)[f]: mind about LICENSE |^
 
-#include <linux/unaligned.h>
 
+#include <linux/bio.h>
 #include <linux/bitops.h>
+#include <linux/bvec.h>
+#include <linux/highmem.h>
+#include <linux/minmax.h>
 #include <linux/string.h>	 /* memset, memcpy */
 #include <linux/lz4.h>
 
@@ -104,136 +107,335 @@ typedef uintptr_t uptrval;
 #define RUN_MASK ((1U << RUN_BITS) - 1)
 
 /*-************************************
- *	Reading and writing into memory
+ *	Bvec iterator helpers
  **************************************/
-static FORCE_INLINE U16 LZ4_read16(const void *ptr)
-{
-	return get_unaligned((const U16 *)ptr);
-}
+#define LZ4E_ITER_POS(iter, start) \
+	((start).bi_size - (iter).bi_size)
 
-static FORCE_INLINE U32 LZ4_read32(const void *ptr)
+/*
+ * advance bvec iterator by exactly 1 byte
+ */
+static FORCE_INLINE void LZ4E_bvec_advance1(const struct bio_vec *sgBuf,
+		struct bvec_iter *iter)
 {
-	return get_unaligned((const U32 *)ptr);
-}
+	unsigned idx = iter->bi_idx;
+	unsigned done = iter->bi_bvec_done;
+	struct bio_vec bvec = bvec_iter_bvec(sgBuf, *iter);
 
-static FORCE_INLINE size_t LZ4_read_ARCH(const void *ptr)
-{
-	return get_unaligned((const size_t *)ptr);
-}
+	BUG_ON(iter->bi_size == 0);
 
-static FORCE_INLINE void LZ4_write16(void *memPtr, U16 value)
-{
-	put_unaligned(value, (U16 *)memPtr);
-}
+	done++;
 
-static FORCE_INLINE void LZ4_write32(void *memPtr, U32 value)
-{
-	put_unaligned(value, (U32 *)memPtr);
-}
+	if (done == bvec.bv_len) {
+		idx++;
+		done = 0;
+	}
 
-static FORCE_INLINE U16 LZ4_readLE16(const void *memPtr)
-{
-	return get_unaligned_le16(memPtr);
-}
-
-static FORCE_INLINE void LZ4_writeLE16(void *memPtr, U16 value)
-{
-	return put_unaligned_le16(value, memPtr);
+	iter->bi_idx = idx;
+	iter->bi_bvec_done = done;
+	iter->bi_size--;
 }
 
 /*
- * LZ4 relies on memcpy with a constant size being inlined. In freestanding
- * environments, the compiler can't assume the implementation of memcpy() is
- * standard compliant, so apply its specialized memcpy() inlining logic. When
- * possible, use __builtin_memcpy() to tell the compiler to analyze memcpy()
- * as-if it were standard compliant, so it can inline it in freestanding
- * environments. This is needed when decompressing the Linux Kernel, for example.
+ * roll bvec iterator back by exactly 1 byte
  */
-#define LZ4_memcpy(dst, src, size) __builtin_memcpy(dst, src, size)
-#define LZ4_memmove(dst, src, size) __builtin_memmove(dst, src, size)
+static FORCE_INLINE void LZ4E_bvec_rollback1(const struct bio_vec *sgBuf,
+		struct bvec_iter *iter)
+{
+	unsigned idx = iter->bi_idx;
+	unsigned done = iter->bi_bvec_done;
 
-static FORCE_INLINE void LZ4_copy8(void *dst, const void *src)
+	if (done == 0) {
+		BUG_ON(idx == 0);
+
+		idx--;
+		done = sgBuf[idx].bv_len;
+	}
+
+	done--;
+
+	iter->bi_idx = idx;
+	iter->bi_bvec_done = done;
+	iter->bi_size++;
+}
+
+/*-************************************
+ *	Reading and writing into memory
+ **************************************/
+static FORCE_INLINE void LZ4E_swap(char * const first, char * const second)
+{
+	char tmp = *first;
+	*first = *second;
+	*second = tmp;
+}
+
+static FORCE_INLINE U16 LZ4E_toLE16(U16 value)
+{
+#if LZ4_LITTLE_ENDIAN
+	return value;
+#endif
+	char *ptr = (char *)(&value);
+	LZ4E_swap(ptr, ptr + 1);
+	return value;
+}
+
+static FORCE_INLINE void LZ4E_memcpy_from_bvec(char *to, const struct bio_vec *from,
+		const size_t off, const size_t len)
+{
+	memcpy_from_page(to, from->bv_page, from->bv_offset + off, len);
+}
+
+static FORCE_INLINE void LZ4E_memcpy_to_bvec(struct bio_vec *to, const char *from,
+		const size_t off, const size_t len)
+{
+	memcpy_to_page(to->bv_page, to->bv_offset + off, from, len);
+}
+
+static FORCE_INLINE void LZ4E_memcpy_from_sg(char *to, const struct bio_vec *from,
+		const struct bvec_iter start, size_t len)
+{
+	struct bvec_iter iter = start;
+	struct bio_vec curBvec;
+	unsigned off;
+	size_t toRead;
+
+	BUG_ON(len > iter.bi_size);
+
+	while (len) {
+		curBvec = bvec_iter_bvec(from, iter);
+		off = iter.bi_bvec_done;
+		toRead = min_t(size_t, len, curBvec.bv_len - off);
+
+		LZ4E_memcpy_from_bvec(to, &curBvec, off, toRead);
+		bvec_iter_advance_single(from, &iter, (unsigned)toRead);
+		to += toRead;
+		len -= toRead;
+	}
+}
+
+static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
+		const struct bvec_iter start, size_t len)
+{
+	struct bvec_iter iter = start;
+	struct bio_vec curBvec;
+	unsigned off;
+	size_t toWrite;
+
+	BUG_ON(len > iter.bi_size);
+
+	while (len) {
+		curBvec = bvec_iter_bvec(to, iter);
+		off = iter.bi_bvec_done;
+		toWrite = min_t(size_t, len, curBvec.bv_len - off);
+
+		LZ4E_memcpy_to_bvec(&curBvec, from, off, toWrite);
+		bvec_iter_advance_single(to, &iter, (unsigned)toWrite);
+		from += toWrite;
+		len -= toWrite;
+	}
+}
+
+static FORCE_INLINE BYTE LZ4E_read8(const struct bio_vec *from,
+		const struct bvec_iter start)
+{
+	BYTE ret;
+
+	LZ4E_memcpy_from_sg(&ret, from, start, 1);
+	return ret;
+}
+
+static FORCE_INLINE void LZ4E_write8(struct bio_vec *to, const BYTE value,
+		const struct bvec_iter start)
+{
+	LZ4E_memcpy_to_sg(to, &value, start, 1);
+}
+
+static FORCE_INLINE U16 LZ4E_read16(const struct bio_vec *from,
+		const struct bvec_iter start)
+{
+	U16 ret;
+
+	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 2);
+	return ret;
+}
+
+static FORCE_INLINE void LZ4E_write16(struct bio_vec *to, const U16 value,
+		const struct bvec_iter start)
+{
+	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 2);
+}
+
+static FORCE_INLINE U16 LZ4E_readLE16(const struct bio_vec *from,
+		const struct bvec_iter start)
+{
+	U16 ret;
+
+	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 2);
+	return LZ4E_toLE16(ret);
+}
+
+static FORCE_INLINE void LZ4E_writeLE16(struct bio_vec *to, const U16 value,
+		const struct bvec_iter start)
+{
+	U16 valueLE = LZ4E_toLE16(value);
+
+	LZ4E_memcpy_to_sg(to, (char *)(&valueLE), start, 2);
+}
+
+static FORCE_INLINE U32 LZ4E_read32(const struct bio_vec *from,
+		const struct bvec_iter start)
+{
+	U32 ret;
+
+	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 4);
+	return ret;
+}
+
+static FORCE_INLINE void LZ4E_write32(struct bio_vec *to, const U32 value,
+		const struct bvec_iter start)
+{
+	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 4);
+}
+
+static FORCE_INLINE U64 LZ4E_read64(const struct bio_vec *from,
+		const struct bvec_iter start)
+{
+	U64 ret;
+
+	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 8);
+	return ret;
+}
+
+static FORCE_INLINE void LZ4E_write64(struct bio_vec *to, const U64 value,
+		const struct bvec_iter start)
+{
+	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 8);
+}
+
+static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *src,
+		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
 {
 #if LZ4_ARCH64
-	U64 a = get_unaligned((const U64 *)src);
+	U64 a = LZ4E_read64(src, srcStart);
 
-	put_unaligned(a, (U64 *)dst);
+	LZ4E_write64(dst, a, dstStart);
 #else
-	U32 a = get_unaligned((const U32 *)src);
-	U32 b = get_unaligned((const U32 *)src + 1);
+	struct bvec_iter srcIter = srcStart;
+	struct bvec_iter dstIter = dstStart;
 
-	put_unaligned(a, (U32 *)dst);
-	put_unaligned(b, (U32 *)dst + 1);
+	U32 a = LZ4E_read32(src, srcIter);
+	bvec_iter_advance(src, &srcIter, 4)
+	U32 b = LZ4E_read32(src, srcIter);
+
+	LZ4E_write32(dst, a, dstIter);
+	bvec_iter_advance(dst, &dstIter, 4);
+	LZ4E_write32(dst, b, dstIter);
 #endif
 }
 
 /*
  * customized variant of memcpy,
- * which can overwrite up to 7 bytes beyond dstEnd
+ * which can overwrite up to 7 bytes beyond target len
  */
-static FORCE_INLINE void LZ4_wildCopy(void *dstPtr,
-	const void *srcPtr, void *dstEnd)
+static FORCE_INLINE void LZ4E_wildCopy(struct bio_vec *dst, const struct bio_vec *src,
+	const struct bvec_iter dstStart, const struct bvec_iter srcStart, size_t len)
 {
-	BYTE *d = (BYTE *)dstPtr;
-	const BYTE *s = (const BYTE *)srcPtr;
-	BYTE *const e = (BYTE *)dstEnd;
+	struct bvec_iter srcIter = srcStart;
+	struct bvec_iter dstIter = dstStart;
 
 	do {
-		LZ4_copy8(d, s);
-		d += 8;
-		s += 8;
-	} while (d < e);
+		LZ4E_copy64(dst, src, dstIter, srcIter);
+		bvec_iter_advance(src, &srcIter, WILDCOPYLENGTH);
+		bvec_iter_advance(dst, &dstIter, WILDCOPYLENGTH);
+		len -= WILDCOPYLENGTH;
+	} while (len > 0);
 }
 
-static FORCE_INLINE unsigned int LZ4_NbCommonBytes(register size_t val)
+static FORCE_INLINE unsigned int LZ4E_NbCommonBytes(register size_t val)
 {
 #if LZ4_LITTLE_ENDIAN
-	return __ffs(val) >> 3;
+	return (unsigned)(__ffs(val) >> 3);
 #else
 	return (BITS_PER_LONG - 1 - __fls(val)) >> 3;
 #endif
 }
 
-static FORCE_INLINE unsigned int LZ4_count(
-	const BYTE *pIn,
-	const BYTE *pMatch,
-	const BYTE *pInLimit)
+static FORCE_INLINE unsigned int LZ4E_count(
+	const struct bio_vec *sgBuf,
+	const struct bvec_iter inStart,
+	const struct bvec_iter matchStart,
+	const size_t inLimit)
 {
-	const BYTE *const pStart = pIn;
+	struct bvec_iter inIter = inStart;
+	struct bvec_iter matchIter = matchStart;
+	U32 inPos = 0;
 
-	while (likely(pIn < pInLimit - (STEPSIZE - 1))) {
-		size_t const diff = LZ4_read_ARCH(pMatch) ^ LZ4_read_ARCH(pIn);
+	while (likely(inPos < inLimit - (STEPSIZE - 1))) {
+		U64 const inVal = LZ4E_read64(sgBuf, inIter);
+		U64 const matchVal = LZ4E_read64(sgBuf, matchIter);
+		U64 const diff = inVal ^ matchVal;
 
 		if (!diff) {
-			pIn += STEPSIZE;
-			pMatch += STEPSIZE;
+			bvec_iter_advance(sgBuf, &inIter, STEPSIZE);
+			bvec_iter_advance(sgBuf, &matchIter, STEPSIZE);
+			inPos = LZ4E_ITER_POS(inIter, inStart);
 			continue;
 		}
 
-		pIn += LZ4_NbCommonBytes(diff);
+		inPos += LZ4E_NbCommonBytes(diff);
 
-		return (unsigned int)(pIn - pStart);
+		return (unsigned)inPos;
 	}
 
 #if LZ4_ARCH64
-	if ((pIn < (pInLimit - 3))
-		&& (LZ4_read32(pMatch) == LZ4_read32(pIn))) {
-		pIn += 4;
-		pMatch += 4;
+	if ((inPos < (inLimit - (4 - 1)))
+		&& (LZ4E_read32(sgBuf, inIter)
+			== LZ4E_read32(sgBuf, matchIter))) {
+		bvec_iter_advance(sgBuf, &inIter, 4);
+		bvec_iter_advance(sgBuf, &matchIter, 4);
+		inPos = LZ4E_ITER_POS(inIter, inStart);
 	}
 #endif
 
-	if ((pIn < (pInLimit - 1))
-		&& (LZ4_read16(pMatch) == LZ4_read16(pIn))) {
-		pIn += 2;
-		pMatch += 2;
+	if ((inPos < (inLimit - (2 - 1)))
+		&& (LZ4E_read16(sgBuf, inIter)
+			== LZ4E_read16(sgBuf, matchIter))) {
+		bvec_iter_advance(sgBuf, &inIter, 2);
+		bvec_iter_advance(sgBuf, &matchIter, 2);
+		inPos = LZ4E_ITER_POS(inIter, inStart);
 	}
 
-	if ((pIn < pInLimit) && (*pMatch == *pIn))
-		pIn++;
+	if ((inPos < inLimit)
+		&& (LZ4E_read8(sgBuf, inIter)
+			== LZ4E_read8(sgBuf, matchIter)))
+		inPos++;
 
-	return (unsigned int)(pIn - pStart);
+	return (unsigned)inPos;
 }
+
+/*-************************************
+ *	Hash table addresses
+ **************************************/
+typedef union {
+    struct {
+        u8 bvec_idx;
+        u16 bvec_off;
+        /* 8b reserved */
+    } addr;
+    u32 raw;
+} __packed LZ4E_tbl_addr_t;
+
+#define LZ4E_TBL_ADDR_FROM_ITER(iter, sgBuf) \
+	((union LZ4E_tbl_addr_t) { \
+		.raw = ((iter).bi_idx << 24) + ((iter).bi_bvec_done << 8) \
+	})
+
+#define LZ4E_ITER_FROM_TBL_ADDR(addr, bvRemSize) \
+	((struct bvec_iter) { \
+		.bi_idx = (addr).addr.bvec_idx, \
+		.bi_size = (bvRemSize)[(addr).addr.bvec_idx] - (addr).addr.bvec_off, \
+		.bi_bvec_done = (addr).addr.bvec_off \
+	 })
 
 typedef enum { noLimit = 0, limitedOutput = 1 } limitedOutput_directive;
 typedef enum { byPtr, byU32, byU16 } tableType_t;
