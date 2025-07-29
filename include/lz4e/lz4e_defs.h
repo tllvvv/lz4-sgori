@@ -44,6 +44,7 @@
 #include <linux/highmem.h>
 #include <linux/minmax.h>
 #include <linux/string.h>	 /* memset, memcpy */
+#include <linux/unaligned.h>
 #include <linux/lz4.h>
 
 #define FORCE_INLINE __always_inline
@@ -162,6 +163,138 @@ static FORCE_INLINE void LZ4E_bvec_rollback1(const struct bio_vec *sgBuf,
 /*-************************************
  *	Reading and writing into memory
  **************************************/
+static FORCE_INLINE U16 LZ4_read16(const void *ptr)
+{
+	return get_unaligned((const U16 *)ptr);
+}
+
+static FORCE_INLINE U32 LZ4_read32(const void *ptr)
+{
+	return get_unaligned((const U32 *)ptr);
+}
+
+static FORCE_INLINE size_t LZ4_read_ARCH(const void *ptr)
+{
+	return get_unaligned((const size_t *)ptr);
+}
+
+static FORCE_INLINE void LZ4_write16(void *memPtr, U16 value)
+{
+	put_unaligned(value, (U16 *)memPtr);
+}
+
+static FORCE_INLINE void LZ4_write32(void *memPtr, U32 value)
+{
+	put_unaligned(value, (U32 *)memPtr);
+}
+
+static FORCE_INLINE U16 LZ4_readLE16(const void *memPtr)
+{
+	return get_unaligned_le16(memPtr);
+}
+
+static FORCE_INLINE void LZ4_writeLE16(void *memPtr, U16 value)
+{
+	return put_unaligned_le16(value, memPtr);
+}
+
+/*
+ * LZ4 relies on memcpy with a constant size being inlined. In freestanding
+ * environments, the compiler can't assume the implementation of memcpy() is
+ * standard compliant, so apply its specialized memcpy() inlining logic. When
+ * possible, use __builtin_memcpy() to tell the compiler to analyze memcpy()
+ * as-if it were standard compliant, so it can inline it in freestanding
+ * environments. This is needed when decompressing the Linux Kernel, for example.
+ */
+#define LZ4_memcpy(dst, src, size) __builtin_memcpy(dst, src, size)
+#define LZ4_memmove(dst, src, size) __builtin_memmove(dst, src, size)
+
+static FORCE_INLINE void LZ4_copy8(void *dst, const void *src)
+{
+#if LZ4_ARCH64
+	U64 a = get_unaligned((const U64 *)src);
+
+	put_unaligned(a, (U64 *)dst);
+#else
+	U32 a = get_unaligned((const U32 *)src);
+	U32 b = get_unaligned((const U32 *)src + 1);
+
+	put_unaligned(a, (U32 *)dst);
+	put_unaligned(b, (U32 *)dst + 1);
+#endif
+}
+
+/*
+ * customized variant of memcpy,
+ * which can overwrite up to 7 bytes beyond dstEnd
+ */
+static FORCE_INLINE void LZ4_wildCopy(void *dstPtr,
+	const void *srcPtr, void *dstEnd)
+{
+	BYTE *d = (BYTE *)dstPtr;
+	const BYTE *s = (const BYTE *)srcPtr;
+	BYTE *const e = (BYTE *)dstEnd;
+
+	do {
+		LZ4_copy8(d, s);
+		d += 8;
+		s += 8;
+	} while (d < e);
+}
+
+static FORCE_INLINE unsigned int LZ4_NbCommonBytes(register size_t val)
+{
+#if LZ4_LITTLE_ENDIAN
+	return (unsigned)(__ffs(val) >> 3);
+#else
+	return (BITS_PER_LONG - 1 - __fls(val)) >> 3;
+#endif
+}
+
+static FORCE_INLINE unsigned int LZ4_count(
+	const BYTE *pIn,
+	const BYTE *pMatch,
+	const BYTE *pInLimit)
+{
+	const BYTE *const pStart = pIn;
+
+	while (likely(pIn < pInLimit - (STEPSIZE - 1))) {
+		size_t const diff = LZ4_read_ARCH(pMatch) ^ LZ4_read_ARCH(pIn);
+
+		if (!diff) {
+			pIn += STEPSIZE;
+			pMatch += STEPSIZE;
+			continue;
+		}
+
+		pIn += LZ4_NbCommonBytes(diff);
+
+		return (unsigned int)(pIn - pStart);
+	}
+
+#if LZ4_ARCH64
+	if ((pIn < (pInLimit - 3))
+		&& (LZ4_read32(pMatch) == LZ4_read32(pIn))) {
+		pIn += 4;
+		pMatch += 4;
+	}
+#endif
+
+	if ((pIn < (pInLimit - 1))
+		&& (LZ4_read16(pMatch) == LZ4_read16(pIn))) {
+		pIn += 2;
+		pMatch += 2;
+	}
+
+	if ((pIn < pInLimit) && (*pMatch == *pIn))
+		pIn++;
+
+	return (unsigned int)(pIn - pStart);
+}
+
+/*-************************************
+ *	Extended memory management
+ **************************************/
 static FORCE_INLINE void LZ4E_swap(char * const first, char * const second)
 {
 	char tmp = *first;
@@ -174,6 +307,7 @@ static FORCE_INLINE U16 LZ4E_toLE16(U16 value)
 #if LZ4_LITTLE_ENDIAN
 	return value;
 #endif
+
 	char *ptr = (char *)(&value);
 	LZ4E_swap(ptr, ptr + 1);
 	return value;
@@ -425,8 +559,8 @@ typedef union {
     u32 raw;
 } __packed LZ4E_tbl_addr_t;
 
-#define LZ4E_TBL_ADDR_FROM_ITER(iter, sgBuf) \
-	((union LZ4E_tbl_addr_t) { \
+#define LZ4E_TBL_ADDR_FROM_ITER(sgBuf, iter) \
+	((LZ4E_tbl_addr_t) { \
 		.raw = ((iter).bi_idx << 24) + ((iter).bi_bvec_done << 8) \
 	})
 

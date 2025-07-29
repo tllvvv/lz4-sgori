@@ -37,7 +37,6 @@
 #include <linux/bvec.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/unaligned.h>
 
 #include "include/lz4e/lz4e.h"
 #include "include/lz4e/lz4e_defs.h"
@@ -79,20 +78,22 @@ static FORCE_INLINE U32 LZ4_hash5(
 #endif
 }
 
-static FORCE_INLINE U32 LZ4_hashPosition(
-	const void *p,
+static FORCE_INLINE U32 LZ4E_hashPosition(
+	const struct bio_vec *sgBuf,
+	const struct bvec_iter pos,
 	tableType_t const tableType)
 {
 #if LZ4_ARCH64
 	if (tableType == byU32)
-		return LZ4_hash5(LZ4_read_ARCH(p), tableType);
+		return LZ4_hash5(LZ4E_read64(sgBuf, pos), tableType);
 #endif
 
-	return LZ4_hash4(LZ4_read32(p), tableType);
+	return LZ4_hash4(LZ4E_read32(sgBuf, pos), tableType);
 }
 
-static void LZ4_putPositionOnHash(
-	const BYTE *p,
+static void LZ4E_putPositionOnHash(
+	const struct bio_vec *sgBuf,
+	const struct bvec_iter pos,
 	U32 h,
 	void *tableBase,
 	tableType_t const tableType,
@@ -103,7 +104,7 @@ static void LZ4_putPositionOnHash(
 	{
 		const BYTE **hashTable = (const BYTE **)tableBase;
 
-		hashTable[h] = p;
+		hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(sgBuf, pos);
 		return;
 	}
 	case byU32:
@@ -129,7 +130,7 @@ static FORCE_INLINE void LZ4_putPosition(
 	tableType_t tableType,
 	const BYTE *srcBase)
 {
-	U32 const h = LZ4_hashPosition(p, tableType);
+	U32 const h = LZ4E_hashPosition(p, tableType);
 
 	LZ4_putPositionOnHash(p, h, tableBase, tableType, srcBase);
 }
@@ -166,7 +167,7 @@ static FORCE_INLINE const BYTE *LZ4_getPosition(
 	tableType_t tableType,
 	const BYTE *srcBase)
 {
-	U32 const h = LZ4_hashPosition(p, tableType);
+	U32 const h = LZ4E_hashPosition(p, tableType);
 
 	return LZ4_getPositionOnHash(h, tableBase, tableType, srcBase);
 }
@@ -215,6 +216,8 @@ static FORCE_INLINE int LZ4_compress_generic(
 	const BYTE * const dictEnd = dictionary + dictPtr->dictSize;
 	U32 * const bvRemSize = &dictPtr->bvRemSize;
 
+	U32 mflimit = inputSize - MFLIMIT;
+	U32 olimit = maxOutputSize;
 	U32 forwardH;
 	size_t refDelta = 0;
 
@@ -260,7 +263,7 @@ static FORCE_INLINE int LZ4_compress_generic(
 	/* First Byte */
 	LZ4_putPosition(ip, dictPtr->hashTable, tableType, base);
 	ip++;
-	forwardH = LZ4_hashPosition(ip, tableType);
+	forwardH = LZ4E_hashPosition(ip, tableType);
 
 	/* Main Loop */
 	for ( ; ; ) {
@@ -296,7 +299,7 @@ static FORCE_INLINE int LZ4_compress_generic(
 						lowLimit = (const BYTE *)source;
 				}	 }
 
-				forwardH = LZ4_hashPosition(forwardIp,
+				forwardH = LZ4E_hashPosition(forwardIp,
 					tableType);
 
 				LZ4_putPositionOnHash(ip, h, dictPtr->hashTable,
