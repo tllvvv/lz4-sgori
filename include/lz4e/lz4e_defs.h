@@ -326,9 +326,8 @@ static FORCE_INLINE void LZ4E_memcpy_to_bvec(struct bio_vec *to, const char *fro
 }
 
 static FORCE_INLINE void LZ4E_memcpy_from_sg(char *to, const struct bio_vec *from,
-		const struct bvec_iter start, size_t len)
+		struct bvec_iter iter, size_t len)
 {
-	struct bvec_iter iter = start;
 	struct bio_vec curBvec;
 	unsigned off;
 	size_t toRead;
@@ -348,9 +347,8 @@ static FORCE_INLINE void LZ4E_memcpy_from_sg(char *to, const struct bio_vec *fro
 }
 
 static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
-		const struct bvec_iter start, size_t len)
+		struct bvec_iter iter, size_t len)
 {
-	struct bvec_iter iter = start;
 	struct bio_vec curBvec;
 	unsigned off;
 	size_t toWrite;
@@ -370,117 +368,114 @@ static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
 }
 
 static FORCE_INLINE BYTE LZ4E_read8(const struct bio_vec *from,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
 	BYTE ret;
 
-	LZ4E_memcpy_from_sg(&ret, from, start, 1);
+	LZ4E_memcpy_from_sg(&ret, from, iter, 1);
 	return ret;
 }
 
 static FORCE_INLINE void LZ4E_write8(struct bio_vec *to, const BYTE value,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
-	LZ4E_memcpy_to_sg(to, &value, start, 1);
+	LZ4E_memcpy_to_sg(to, &value, iter, 1);
 }
 
 static FORCE_INLINE U16 LZ4E_read16(const struct bio_vec *from,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
 	U16 ret;
 
-	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 2);
+	LZ4E_memcpy_from_sg((char *)(&ret), from, iter, 2);
 	return ret;
 }
 
 static FORCE_INLINE void LZ4E_write16(struct bio_vec *to, const U16 value,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
-	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 2);
+	LZ4E_memcpy_to_sg(to, (char *)(&value), iter, 2);
 }
 
 static FORCE_INLINE U16 LZ4E_readLE16(const struct bio_vec *from,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
 	U16 ret;
 
-	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 2);
+	LZ4E_memcpy_from_sg((char *)(&ret), from, iter, 2);
 	return LZ4E_toLE16(ret);
 }
 
 static FORCE_INLINE void LZ4E_writeLE16(struct bio_vec *to, const U16 value,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
 	U16 valueLE = LZ4E_toLE16(value);
 
-	LZ4E_memcpy_to_sg(to, (char *)(&valueLE), start, 2);
+	LZ4E_memcpy_to_sg(to, (char *)(&valueLE), iter, 2);
 }
 
 static FORCE_INLINE U32 LZ4E_read32(const struct bio_vec *from,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
 	U32 ret;
 
-	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 4);
+	LZ4E_memcpy_from_sg((char *)(&ret), from, iter, 4);
 	return ret;
 }
 
 static FORCE_INLINE void LZ4E_write32(struct bio_vec *to, const U32 value,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
-	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 4);
+	LZ4E_memcpy_to_sg(to, (char *)(&value), iter, 4);
 }
 
 static FORCE_INLINE U64 LZ4E_read64(const struct bio_vec *from,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
 	U64 ret;
 
-	LZ4E_memcpy_from_sg((char *)(&ret), from, start, 8);
+	LZ4E_memcpy_from_sg((char *)(&ret), from, iter, 8);
 	return ret;
 }
 
 static FORCE_INLINE void LZ4E_write64(struct bio_vec *to, const U64 value,
-		const struct bvec_iter start)
+		struct bvec_iter iter)
 {
-	LZ4E_memcpy_to_sg(to, (char *)(&value), start, 8);
+	LZ4E_memcpy_to_sg(to, (char *)(&value), iter, 8);
 }
 
 static FORCE_INLINE void LZ4E_copy8(struct bio_vec *dst, const struct bio_vec *src,
-		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
-	BYTE val = LZ4E_read8(src, srcStart);
+	BYTE val = LZ4E_read8(src, srcIter);
 
-	LZ4E_write8(dst, val, dstStart);
+	LZ4E_write8(dst, val, dstIter);
 }
 
 static FORCE_INLINE void LZ4E_copy16(struct bio_vec *dst, const struct bio_vec *src,
-		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
-	U16 val = LZ4E_read16(src, srcStart);
+	U16 val = LZ4E_read16(src, srcIter);
 
-	LZ4E_write16(dst, val, dstStart);
+	LZ4E_write16(dst, val, dstIter);
 }
 
 static FORCE_INLINE void LZ4E_copy32(struct bio_vec *dst, const struct bio_vec *src,
-		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
-	U32 val = LZ4E_read32(src, srcStart);
+	U32 val = LZ4E_read32(src, srcIter);
 
-	LZ4E_write32(dst, val, dstStart);
+	LZ4E_write32(dst, val, dstIter);
 }
 
 static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *src,
-		const struct bvec_iter dstStart, const struct bvec_iter srcStart)
+		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
 #if LZ4_ARCH64
-	U64 a = LZ4E_read64(src, srcStart);
+	U64 a = LZ4E_read64(src, srcIter);
 
-	LZ4E_write64(dst, a, dstStart);
+	LZ4E_write64(dst, a, dstIter);
 #else
-	struct bvec_iter srcIter = srcStart;
-	struct bvec_iter dstIter = dstStart;
-
 	U32 a = LZ4E_read32(src, srcIter);
 	bvec_iter_advance(src, &srcIter, 4)
 	U32 b = LZ4E_read32(src, srcIter);
@@ -496,11 +491,8 @@ static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *
  * which can overwrite up to 7 bytes beyond target len
  */
 static FORCE_INLINE void LZ4E_wildCopy(struct bio_vec *dst, const struct bio_vec *src,
-	const struct bvec_iter dstStart, const struct bvec_iter srcStart, size_t len)
+	struct bvec_iter dstIter, struct bvec_iter srcIter, size_t len)
 {
-	struct bvec_iter srcIter = srcStart;
-	struct bvec_iter dstIter = dstStart;
-
 	do {
 		LZ4E_copy64(dst, src, dstIter, srcIter);
 		bvec_iter_advance(src, &srcIter, WILDCOPYLENGTH);
@@ -510,11 +502,8 @@ static FORCE_INLINE void LZ4E_wildCopy(struct bio_vec *dst, const struct bio_vec
 }
 
 static FORCE_INLINE void LZ4E_memcpy(struct bio_vec *dst, const struct bio_vec *src,
-	const struct bvec_iter dstStart, const struct bvec_iter srcStart, size_t len)
+	struct bvec_iter dstIter, struct bvec_iter srcIter, size_t len)
 {
-	struct bvec_iter srcIter = srcStart;
-	struct bvec_iter dstIter = dstStart;
-
 	for (int i = 0; i < len / 8; ++i) {
 		LZ4E_copy64(dst, src, dstIter, srcIter);
 		bvec_iter_advance(src, &srcIter, 8);
@@ -552,12 +541,11 @@ static FORCE_INLINE unsigned int LZ4E_NbCommonBytes(register size_t val)
 
 static FORCE_INLINE unsigned int LZ4E_count(
 	const struct bio_vec *sgBuf,
-	const struct bvec_iter inStart,
-	const struct bvec_iter matchStart,
+	struct bvec_iter inIter,
+	struct bvec_iter matchIter,
 	const size_t inLimit)
 {
-	struct bvec_iter inIter = inStart;
-	struct bvec_iter matchIter = matchStart;
+	const struct bvec_iter inStart = inIter;
 	U32 inPos = 0;
 
 	while (likely(inPos < inLimit - (STEPSIZE - 1))) {
