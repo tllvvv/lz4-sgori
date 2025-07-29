@@ -48,8 +48,8 @@ static const int LZ4_64Klimit = ((64 * KB) + (MFLIMIT - 1));
  *	Compression functions
  ********************************/
 static FORCE_INLINE U32 LZ4_hash4(
-	U32 sequence,
-	tableType_t const tableType)
+	const U32 sequence,
+	const tableType_t tableType)
 {
 	if (tableType == byU16)
 		return ((sequence * 2654435761U)
@@ -60,8 +60,8 @@ static FORCE_INLINE U32 LZ4_hash4(
 }
 
 static FORCE_INLINE U32 LZ4_hash5(
-	U64 sequence,
-	tableType_t const tableType)
+	const U64 sequence,
+	const tableType_t tableType)
 {
 	const U32 hashLog = (tableType == byU16)
 		? LZ4_HASHLOG + 1
@@ -81,7 +81,7 @@ static FORCE_INLINE U32 LZ4_hash5(
 static FORCE_INLINE U32 LZ4E_hashPosition(
 	const struct bio_vec *sgBuf,
 	const struct bvec_iter pos,
-	tableType_t const tableType)
+	const tableType_t tableType)
 {
 #if LZ4_ARCH64
 	if (tableType == byU32)
@@ -94,82 +94,49 @@ static FORCE_INLINE U32 LZ4E_hashPosition(
 static void LZ4E_putPositionOnHash(
 	const struct bio_vec *sgBuf,
 	const struct bvec_iter pos,
-	U32 h,
+	const U32 h,
 	void *tableBase,
-	tableType_t const tableType,
-	const BYTE *srcBase)
+	const tableType_t tableType)
 {
-	switch (tableType) {
-	case byPtr:
-	{
-		const BYTE **hashTable = (const BYTE **)tableBase;
-
-		hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(sgBuf, pos);
-		return;
-	}
-	case byU32:
-	{
-		U32 *hashTable = (U32 *) tableBase;
-
-		hashTable[h] = (U32)(p - srcBase);
-		return;
-	}
-	case byU16:
-	{
-		U16 *hashTable = (U16 *) tableBase;
-
-		hashTable[h] = (U16)(p - srcBase);
-		return;
-	}
-	}
+	LZ4E_tbl_addr_t *hashTable = (LZ4E_tbl_addr_t *)tableBase;
+	
+	hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(sgBuf, pos);
 }
 
 static FORCE_INLINE void LZ4_putPosition(
-	const BYTE *p,
+	const struct bio_vec *sgBuf,
+	const struct bvec_iter pos,
 	void *tableBase,
-	tableType_t tableType,
-	const BYTE *srcBase)
+	const tableType_t tableType)
 {
-	U32 const h = LZ4E_hashPosition(p, tableType);
+	U32 const h = LZ4E_hashPosition(sgBuf, pos, tableType);
 
-	LZ4_putPositionOnHash(p, h, tableBase, tableType, srcBase);
+	LZ4E_putPositionOnHash(sgBuf, pos, h, tableBase, tableType);
 }
 
-static const BYTE *LZ4_getPositionOnHash(
-	U32 h,
+static struct bvec_iter LZ4E_getPositionOnHash(
+	const U32 h,
 	void *tableBase,
-	tableType_t tableType,
-	const BYTE *srcBase)
+	void *remSizeBase,
+	const tableType_t tableType)
 {
-	if (tableType == byPtr) {
-		const BYTE **hashTable = (const BYTE **) tableBase;
-
-		return hashTable[h];
-	}
-
-	if (tableType == byU32) {
-		const U32 * const hashTable = (U32 *) tableBase;
-
-		return hashTable[h] + srcBase;
-	}
-
-	{
-		/* default, to ensure a return */
-		const U16 * const hashTable = (U16 *) tableBase;
-
-		return hashTable[h] + srcBase;
-	}
+	const LZ4E_tbl_addr_t *hashTable = (const LZ4E_tbl_addr_t *)tableBase;
+	const U32 *bvRemSize = (const U32 *)remSizeBase;
+	const LZ4E_tbl_addr_t addr = hashTable[h];
+	
+	return LZ4E_TBL_ADDR_TO_ITER(addr, bvRemSize);
 }
 
-static FORCE_INLINE const BYTE *LZ4_getPosition(
-	const BYTE *p,
+static FORCE_INLINE struct bvec_iter LZ4_getPosition(
+	const struct bio_vec *sgBuf,
+	const struct bvec_iter pos,
 	void *tableBase,
-	tableType_t tableType,
-	const BYTE *srcBase)
+	void *remSizeBase,
+	const tableType_t tableType)
 {
-	U32 const h = LZ4E_hashPosition(p, tableType);
+	U32 const h = LZ4E_hashPosition(sgBuf, pos, tableType);
 
-	return LZ4_getPositionOnHash(h, tableBase, tableType, srcBase);
+	return LZ4E_getPositionOnHash(h, tableBase, remSizeBase, tableType);
 }
 
 static bool LZ4E_fillBvRemSize(
@@ -202,7 +169,7 @@ static FORCE_INLINE int LZ4_compress_generic(
 	struct bvec_iter * const srcIter,
 	struct bvec_iter * const dstIter,
 	const limitedOutput_directive outputLimited,
-	const tableType_t tableType,
+	const tableType_t tableType,			// NOTE:(bgch): always byU32
 	const dict_directive dict,			// NOTE:(kogora): always noDict
 	const dictIssue_directive dictIssue,		// NOTE:(kogora): always noDictIssue
 	const U32 acceleration)
@@ -490,12 +457,7 @@ static int LZ4E_compress_fast_extState(
 	LZ4_stream_t_internal *ctx = &((LZ4_stream_t *)state)->internal_donotuse;
 	const unsigned inputSize = srcIter->bi_size;
 	const unsigned maxOutputSize = dstIter->bi_size;
-
-#if LZ4_ARCH64
 	const tableType_t tableType = byU32;
-#else
-	const tableType_t tableType = byPtr;
-#endif
 
 	memset(state, 0, sizeof(LZ4_stream_t));
 

@@ -564,7 +564,7 @@ typedef union {
 		.raw = ((iter).bi_idx << 24) + ((iter).bi_bvec_done << 8) \
 	})
 
-#define LZ4E_ITER_FROM_TBL_ADDR(addr, bvRemSize) \
+#define LZ4E_TBL_ADDR_TO_ITER(addr, bvRemSize) \
 	((struct bvec_iter) { \
 		.bi_idx = (addr).addr.bvec_idx, \
 		.bi_size = (bvRemSize)[(addr).addr.bvec_idx] - (addr).addr.bvec_off, \
