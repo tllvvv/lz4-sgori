@@ -11,6 +11,7 @@
 #include <linux/blk_types.h>
 #include <linux/blkdev.h>
 #include <linux/gfp_types.h>
+#include <linux/lz4.h>
 #include <linux/math.h>
 #include <linux/minmax.h>
 #include <linux/mm.h>
@@ -76,24 +77,23 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 	return BLK_STS_OK;
 }
 
-static inline unsigned int lz4e_bio_page_count(struct bio *bio)
+static inline unsigned short lz4e_bio_bytes_to_pages(size_t bytes)
 {
-	unsigned int pages = DIV_ROUND_UP_SECTOR_T(bio_sectors(bio),
-						   PAGE_SIZE / SECTOR_SIZE);
+	size_t pages = DIV_ROUND_UP(bytes, PAGE_SIZE);
 
-	return min_t(unsigned int, pages, BIO_MAX_VECS);
+	return (unsigned short)min_t(size_t, pages, BIO_MAX_VECS);
 }
 
 static struct bio *lz4e_alloc_new_bio(struct bio *original_bio,
 				      struct lz4e_under_dev *under_dev)
 {
+	size_t bsize = LZ4_COMPRESSBOUND(original_bio->bi_iter.bi_size);
 	struct block_device *bdev = under_dev->bdev;
 	struct bio_set *bset = under_dev->bset;
 	struct bio *new_bio;
 
-	new_bio = bio_alloc_bioset(
-		bdev, (unsigned short)lz4e_bio_page_count(original_bio),
-		original_bio->bi_opf, GFP_NOIO, bset);
+	new_bio = bio_alloc_bioset(bdev, lz4e_bio_bytes_to_pages(bsize),
+				   original_bio->bi_opf, GFP_NOIO, bset);
 	if (!new_bio) {
 		LZ4E_PR_ERR("failed to allocate new bio");
 		return NULL;
@@ -105,18 +105,27 @@ static struct bio *lz4e_alloc_new_bio(struct bio *original_bio,
 	return new_bio;
 }
 
+static void lz4e_reset_bio(struct bio *bio_to_reset, struct bio *original_bio)
+{
+	bio_reset(bio_to_reset, original_bio->bi_bdev, original_bio->bi_opf);
+
+	bio_to_reset->bi_iter.bi_sector = original_bio->bi_iter.bi_sector;
+
+	LZ4E_PR_DEBUG("reset new bio");
+}
+
 static int lz4e_add_buf_to_bio(struct bio *bio, struct lz4e_buffer *buf)
 {
 	char *data = buf->data;
-	unsigned int data_len = (unsigned int)buf->data_size;
+	unsigned int buf_len = (unsigned int)buf->buf_size;
 	unsigned int page_off;
 	unsigned int page_len;
 	int ret;
 
 	page_off = offset_in_page(data);
-	page_len = min_t(unsigned int, data_len, PAGE_SIZE - page_off);
+	page_len = min_t(unsigned int, buf_len, PAGE_SIZE - page_off);
 
-	while (data_len) {
+	while (buf_len) {
 		ret = bio_add_page(bio, virt_to_page(data), page_len, page_off);
 		if (ret != page_len) {
 			LZ4E_PR_ERR("failed to add page to bio");
@@ -124,10 +133,10 @@ static int lz4e_add_buf_to_bio(struct bio *bio, struct lz4e_buffer *buf)
 		}
 
 		data += page_len;
-		data_len -= page_len;
+		buf_len -= page_len;
 
 		page_off = 0;
-		page_len = min_t(unsigned int, data_len, PAGE_SIZE);
+		page_len = min_t(unsigned int, buf_len, PAGE_SIZE);
 	}
 
 	LZ4E_PR_DEBUG("added buffer to bio");
@@ -150,22 +159,6 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 		return BLK_STS_RESOURCE;
 	}
 
-	lz4e_buf_copy_from_bio(&chunk->src_buf, original_bio);
-
-	ret = lz4e_chunk_compress(chunk);
-	if (ret) {
-		LZ4E_PR_ERR("failed to compress data");
-		status = BLK_STS_IOERR;
-		goto free_chunk;
-	}
-
-	ret = lz4e_chunk_decompress(chunk);
-	if (ret) {
-		LZ4E_PR_ERR("failed to decompress data");
-		status = BLK_STS_IOERR;
-		goto free_chunk;
-	}
-
 	new_bio = lz4e_alloc_new_bio(original_bio, lzdev->under_dev);
 	if (!new_bio) {
 		LZ4E_PR_ERR("failed to allocate new bio");
@@ -173,9 +166,35 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 		goto free_chunk;
 	}
 
+	ret = lz4e_add_buf_to_bio(new_bio, &chunk->dst_buf);
+	if (ret) {
+		LZ4E_PR_ERR("failed to add dst buffer to bio");
+		status = BLK_STS_IOERR;
+		goto put_new_bio;
+	}
+
+	chunk->src_buf.bio = original_bio;
+	chunk->dst_buf.bio = new_bio;
+
+	ret = lz4e_chunk_compress_ext(chunk);
+	if (ret) {
+		LZ4E_PR_ERR("failed to compress data");
+		status = BLK_STS_IOERR;
+		goto put_new_bio;
+	}
+
+	ret = lz4e_chunk_decompress(chunk);
+	if (ret) {
+		LZ4E_PR_ERR("failed to decompress data");
+		status = BLK_STS_IOERR;
+		goto put_new_bio;
+	}
+
+	lz4e_reset_bio(new_bio, original_bio);
+
 	ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
 	if (ret) {
-		LZ4E_PR_ERR("failed to add buffer to bio");
+		LZ4E_PR_ERR("failed to add src buffer to bio");
 		status = BLK_STS_IOERR;
 		goto put_new_bio;
 	}

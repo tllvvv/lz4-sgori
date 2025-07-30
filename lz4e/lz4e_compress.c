@@ -197,7 +197,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	struct bvec_iter * const srcIter,
 	struct bvec_iter * const dstIter,
 	const limitedOutput_directive outputLimited,
-	const tableType_t tableType,			// NOTE:(bgch): always byU32
+	const tableType_t tableType,
 	const dict_directive dict,			// NOTE:(kogora): always noDict
 	const dictIssue_directive dictIssue,		// NOTE:(kogora): always noDictIssue
 	const U32 acceleration)
@@ -216,7 +216,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	U32 forwardH;
 
 	/* Init conditions */
-	if ((U32)inputSize > (U32)LZ4_MAX_INPUT_SIZE) {
+	if (inputSize > LZ4_MAX_INPUT_SIZE) {
 		/* Unsupported inputSize, too large (or negative) */
 		return 0;
 	}
@@ -338,7 +338,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 				return 0;
 
 			if (litLength >= RUN_MASK) {
-				int len = (int)(litLength - RUN_MASK);
+				unsigned int len = litLength - RUN_MASK;
 
 				token = (RUN_MASK << ML_BITS);
 
@@ -496,7 +496,7 @@ _last_literals:
 		}
 
 		LZ4E_memcpy(dstSg, srcSg, *dstIter, anchorIter, lastRun);
-		LZ4E_advance(dstSg, dstIter, &dstPos, (unsigned)lastRun);
+		dstPos += lastRun;
 	}
 
 	/* End */
