@@ -121,7 +121,7 @@ static FORCE_INLINE void LZ4E_iter_advance1(const struct bio_vec *sgBuf,
 {
 	unsigned idx = iter->bi_idx;
 	unsigned done = iter->bi_bvec_done;
-	struct bio_vec bvec = bvec_iter_bvec(sgBuf, *iter);
+	struct bio_vec bvec = sgBuf[idx];
 
 	BUG_ON(iter->bi_size == 0);
 
@@ -158,6 +158,34 @@ static FORCE_INLINE void LZ4E_iter_rollback1(const struct bio_vec *sgBuf,
 	iter->bi_idx = idx;
 	iter->bi_bvec_done = done;
 	iter->bi_size++;
+}
+
+static FORCE_INLINE void LZ4E_advance(
+	const struct bio_vec *sgBuf,
+	struct bvec_iter *iter,
+	U32 *pos,
+	const unsigned bytes)
+{
+	bvec_iter_advance(sgBuf, iter, bytes);
+	*pos += bytes;
+}
+
+static FORCE_INLINE void LZ4E_advance1(
+	const struct bio_vec *sgBuf,
+	struct bvec_iter *iter,
+	U32 *pos)
+{
+	LZ4E_iter_advance1(sgBuf, iter);
+	(*pos)++;
+}
+
+static FORCE_INLINE void LZ4E_rollback1(
+	const struct bio_vec *sgBuf,
+	struct bvec_iter *iter,
+	U32 *pos)
+{
+	LZ4E_iter_rollback1(sgBuf, iter);
+	(*pos)--;
 }
 
 /*-************************************
@@ -335,7 +363,7 @@ static FORCE_INLINE void LZ4E_memcpy_from_sg(char *to, const struct bio_vec *fro
 	BUG_ON(len > iter.bi_size);
 
 	while (len) {
-		curBvec = bvec_iter_bvec(from, iter);
+		curBvec = from[iter.bi_idx];
 		off = iter.bi_bvec_done;
 		toRead = min_t(size_t, len, curBvec.bv_len - off);
 
@@ -356,7 +384,7 @@ static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
 	BUG_ON(len > iter.bi_size);
 
 	while (len) {
-		curBvec = bvec_iter_bvec(to, iter);
+		curBvec = to[iter.bi_idx];
 		off = iter.bi_bvec_done;
 		toWrite = min_t(size_t, len, curBvec.bv_len - off);
 
@@ -471,19 +499,9 @@ static FORCE_INLINE void LZ4E_copy32(struct bio_vec *dst, const struct bio_vec *
 static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *src,
 		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
-#if LZ4_ARCH64
-	U64 a = LZ4E_read64(src, srcIter);
+	U64 val = LZ4E_read64(src, srcIter);
 
-	LZ4E_write64(dst, a, dstIter);
-#else
-	U32 a = LZ4E_read32(src, srcIter);
-	bvec_iter_advance(src, &srcIter, 4)
-	U32 b = LZ4E_read32(src, srcIter);
-
-	LZ4E_write32(dst, a, dstIter);
-	bvec_iter_advance(dst, &dstIter, 4);
-	LZ4E_write32(dst, b, dstIter);
-#endif
+	LZ4E_write64(dst, val, dstIter);
 }
 
 /*
@@ -493,12 +511,12 @@ static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *
 static FORCE_INLINE void LZ4E_wildCopy(struct bio_vec *dst, const struct bio_vec *src,
 	struct bvec_iter dstIter, struct bvec_iter srcIter, size_t len)
 {
-	do {
+	while (len) {
 		LZ4E_copy64(dst, src, dstIter, srcIter);
 		bvec_iter_advance(src, &srcIter, WILDCOPYLENGTH);
 		bvec_iter_advance(dst, &dstIter, WILDCOPYLENGTH);
-		len -= WILDCOPYLENGTH;
-	} while (len > 0);
+		len -= min_t(size_t, len, WILDCOPYLENGTH);
+	}
 }
 
 static FORCE_INLINE void LZ4E_memcpy(struct bio_vec *dst, const struct bio_vec *src,
@@ -543,52 +561,46 @@ static FORCE_INLINE unsigned int LZ4E_count(
 	const struct bio_vec *sgBuf,
 	struct bvec_iter inIter,
 	struct bvec_iter matchIter,
-	const size_t inLimit)
+	const size_t countLimit)
 {
-	const struct bvec_iter inStart = inIter;
-	U32 inPos = 0;
+	unsigned count = 0;
 
-	while (likely(inPos < inLimit - (STEPSIZE - 1))) {
+	while (likely(count <= countLimit - STEPSIZE)) {
 		U64 const inVal = LZ4E_read64(sgBuf, inIter);
 		U64 const matchVal = LZ4E_read64(sgBuf, matchIter);
 		U64 const diff = inVal ^ matchVal;
 
 		if (!diff) {
-			bvec_iter_advance(sgBuf, &inIter, STEPSIZE);
+			LZ4E_advance(sgBuf, &inIter, &count, STEPSIZE);
 			bvec_iter_advance(sgBuf, &matchIter, STEPSIZE);
-			inPos = LZ4E_ITER_POS(inIter, inStart);
 			continue;
 		}
 
-		inPos += LZ4E_NbCommonBytes(diff);
+		count += LZ4E_NbCommonBytes(diff);
 
-		return (unsigned)inPos;
+		return count;
 	}
 
-#if LZ4_ARCH64
-	if ((inPos < (inLimit - (4 - 1)))
+	if ((count <= countLimit - 4)
 		&& (LZ4E_read32(sgBuf, inIter)
 			== LZ4E_read32(sgBuf, matchIter))) {
-		bvec_iter_advance(sgBuf, &inIter, 4);
+		LZ4E_advance(sgBuf, &inIter, &count, 4);
 		bvec_iter_advance(sgBuf, &matchIter, 4);
-		inPos = LZ4E_ITER_POS(inIter, inStart);
 	}
-#endif
 
-	if ((inPos < (inLimit - (2 - 1)))
+	if ((count <= countLimit - 2)
 		&& (LZ4E_read16(sgBuf, inIter)
 			== LZ4E_read16(sgBuf, matchIter))) {
-		bvec_iter_advance(sgBuf, &inIter, 2);
+		LZ4E_advance(sgBuf, &inIter, &count, 2);
 		bvec_iter_advance(sgBuf, &matchIter, 2);
-		inPos = LZ4E_ITER_POS(inIter, inStart);
 	}
 
-	if ((inPos < inLimit)
+	if ((count <= countLimit - 1)
 		&& (LZ4E_read8(sgBuf, inIter)
 			== LZ4E_read8(sgBuf, matchIter)))
-		inPos++;
+		count++;
 
-	return (unsigned)inPos;
+	return count;
 }
 
 /*-************************************
@@ -596,16 +608,18 @@ static FORCE_INLINE unsigned int LZ4E_count(
  **************************************/
 typedef union {
     struct {
-        u8 bvec_idx;
-        u16 bvec_off;
-        /* 8b reserved */
+        u8 bvec_idx  : 8;
+        u32 bvec_off : 24;
     } addr;
     u32 raw;
 } __packed LZ4E_tbl_addr_t;
 
-#define LZ4E_TBL_ADDR_FROM_ITER(sgBuf, iter) \
+#define LZ4E_TBL_ADDR_FROM_ITER(iter) \
 	((LZ4E_tbl_addr_t) { \
-		.raw = ((iter).bi_idx << 24) + ((iter).bi_bvec_done << 8) \
+		.addr = { \
+			.bvec_idx = (u8)((iter).bi_idx), \
+			.bvec_off = (u32)((iter).bi_bvec_done) \
+		} \
 	})
 
 #define LZ4E_TBL_ADDR_TO_ITER(addr, bvRemSize) \

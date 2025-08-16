@@ -105,9 +105,10 @@ static struct bio *lz4e_alloc_new_bio(struct bio *original_bio,
 	return new_bio;
 }
 
-static void lz4e_reset_bio(struct bio *bio_to_reset, struct bio *original_bio)
+static void lz4e_reset_bio(struct bio *bio_to_reset, struct bio *original_bio,
+			   struct lz4e_under_dev *under_dev)
 {
-	bio_reset(bio_to_reset, original_bio->bi_bdev, original_bio->bi_opf);
+	bio_reset(bio_to_reset, under_dev->bdev, original_bio->bi_opf);
 
 	bio_to_reset->bi_iter.bi_sector = original_bio->bi_iter.bi_sector;
 
@@ -190,7 +191,7 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 		goto put_new_bio;
 	}
 
-	lz4e_reset_bio(new_bio, original_bio);
+	lz4e_reset_bio(new_bio, original_bio, lzdev->under_dev);
 
 	ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
 	if (ret) {

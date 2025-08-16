@@ -92,15 +92,14 @@ static FORCE_INLINE U32 LZ4E_hashPosition(
 }
 
 static void LZ4E_putPositionOnHash(
-	const struct bio_vec *sgBuf,
 	const struct bvec_iter pos,
 	const U32 h,
 	void *tableBase,
 	const tableType_t tableType)
 {
 	LZ4E_tbl_addr_t *hashTable = (LZ4E_tbl_addr_t *)tableBase;
-	
-	hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(sgBuf, pos);
+
+	hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(pos);
 }
 
 static FORCE_INLINE void LZ4E_putPosition(
@@ -111,7 +110,7 @@ static FORCE_INLINE void LZ4E_putPosition(
 {
 	U32 const h = LZ4E_hashPosition(sgBuf, pos, tableType);
 
-	LZ4E_putPositionOnHash(sgBuf, pos, h, tableBase, tableType);
+	LZ4E_putPositionOnHash(pos, h, tableBase, tableType);
 }
 
 static struct bvec_iter LZ4E_getPositionOnHash(
@@ -123,7 +122,7 @@ static struct bvec_iter LZ4E_getPositionOnHash(
 	const LZ4E_tbl_addr_t *hashTable = (const LZ4E_tbl_addr_t *)tableBase;
 	const U32 *bvRemSize = (const U32 *)remSizeBase;
 	const LZ4E_tbl_addr_t addr = hashTable[h];
-	
+
 	return LZ4E_TBL_ADDR_TO_ITER(addr, bvRemSize);
 }
 
@@ -157,34 +156,6 @@ static bool LZ4E_fillBvRemSize(
 	return true;
 }
 
-static void LZ4E_advance(
-	const struct bio_vec *sgBuf,
-	struct bvec_iter *iter,
-	U32 *pos,
-	const unsigned bytes)
-{
-	bvec_iter_advance(sgBuf, iter, bytes);
-	*pos += bytes;
-}
-
-static void LZ4E_advance1(
-	const struct bio_vec *sgBuf,
-	struct bvec_iter *iter,
-	U32 *pos)
-{
-	LZ4E_iter_advance1(sgBuf, iter);
-	(*pos)++;
-}
-
-static void LZ4E_rollback1(
-	const struct bio_vec *sgBuf,
-	struct bvec_iter *iter,
-	U32 *pos)
-{
-	LZ4E_iter_rollback1(sgBuf, iter);
-	(*pos)--;
-}
-
 
 /*
  * LZ4_compress_generic() :
@@ -202,8 +173,8 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	const dictIssue_directive dictIssue,		// NOTE:(kogora): always noDictIssue
 	const U32 acceleration)
 {
-	const unsigned inputSize = srcIter->bi_size;
-	const unsigned maxOutputSize = dstIter->bi_size;
+	const unsigned int inputSize = srcIter->bi_size;
+	const unsigned int maxOutputSize = dstIter->bi_size;
 	const struct bvec_iter srcStart = *srcIter;
 	struct bvec_iter anchorIter = srcStart;
 
@@ -302,7 +273,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 				forwardH = LZ4E_hashPosition(srcSg,
 					forwardIter, tableType);
 
-				LZ4E_putPositionOnHash(srcSg, *srcIter, h,
+				LZ4E_putPositionOnHash(*srcIter, h,
 					dictPtr->hashTable, tableType);
 			} while (((tableType == byU16)
 					? 0
@@ -312,20 +283,21 @@ static FORCE_INLINE int LZ4E_compress_generic(
 		}
 
 		/* Catch up */
-		while (((srcPos > anchorPos) & (matchPos > 0))
-				&& (unlikely(LZ4E_read8(srcSg, *srcIter)
-					== LZ4E_read8(srcSg, matchIter)))) {
+		while ((srcPos > anchorPos) && (matchPos > 0)) {
 			LZ4E_rollback1(srcSg, srcIter, &srcPos);
 			LZ4E_rollback1(srcSg, &matchIter, &matchPos);
-		}
 
-		/* Get back on first matching byte */
-		LZ4E_advance1(srcSg, srcIter, &srcPos);
-		LZ4E_advance1(srcSg, &matchIter, &matchPos);
+			if (likely(LZ4E_read8(srcSg, *srcIter)
+				!= LZ4E_read8(srcSg, matchIter))) {
+				LZ4E_advance1(srcSg, srcIter, &srcPos);
+				LZ4E_advance1(srcSg, &matchIter, &matchPos);
+				break;
+			}
+		}
 
 		/* Encode Literals */
 		{
-			unsigned const int litLength = (unsigned int)(srcPos - anchorPos);
+			unsigned const int litLength = srcPos - anchorPos;
 
 			tokenIter = *dstIter;
 			LZ4E_advance1(dstSg, dstIter, &dstPos);
@@ -368,23 +340,23 @@ _next_match:
 //			if ((dict == usingExtDict)
 //				&& (lowLimit == dictionary)) {
 //				const BYTE *limit;
-//	
+//
 //				matchIter += refDelta;
 //				limit = ip + (dictEnd - match);
-//	
+//
 //				if (limit > matchlimit)
 //					limit = matchlimit;
-//	
+//
 //				matchCode = LZ4_count(ip + MINMATCH,
 //					match + MINMATCH, limit);
-//	
+//
 //				ip += MINMATCH + matchCode;
-//	
+//
 //				if (ip == limit) {
 //					unsigned const int more = LZ4_count(ip,
 //						(const BYTE *)source,
 //						matchlimit);
-//	
+//
 //					matchCode += more;
 //					ip += more;
 //				}
@@ -392,7 +364,7 @@ _next_match:
 //
 			LZ4E_advance(srcSg, srcIter, &srcPos, MINMATCH);
 			LZ4E_advance(srcSg, &matchIter, &matchPos, MINMATCH);
-			matchCode = LZ4E_count(srcSg, *srcIter, matchIter, matchlimit);
+			matchCode = LZ4E_count(srcSg, *srcIter, matchIter, matchlimit - srcPos);
 			LZ4E_advance(srcSg, srcIter, &srcPos, matchCode);
 
 			if (outputLimited &&
@@ -470,7 +442,7 @@ _next_match:
 _last_literals:
 	/* Encode Last Literals */
 	{
-		size_t const lastRun = (size_t)(inputSize - anchorPos);
+		unsigned const int lastRun = inputSize - anchorPos;
 
 		if ((outputLimited) &&
 			/* Check output buffer overflow */
@@ -512,33 +484,33 @@ static int LZ4E_compress_fast_extState(
 	int acceleration)
 {
 	LZ4E_stream_t_internal *ctx = &((LZ4E_stream_t *)state)->internal_donotuse;
-	const unsigned inputSize = srcIter->bi_size;
-	const unsigned maxOutputSize = dstIter->bi_size;
+	const unsigned int inputSize = srcIter->bi_size;
+	const unsigned int maxOutputSize = dstIter->bi_size;
 	const tableType_t tableType = byU32;
 
-	memset(state, 0, sizeof(LZ4_stream_t));
+	memset(state, 0, sizeof(LZ4E_stream_t));
 
 	if (acceleration < 1)
 		acceleration = LZ4_ACCELERATION_DEFAULT;
 
 	if (maxOutputSize >= LZ4_COMPRESSBOUND(inputSize)) {
-		if (inputSize < LZ4_64Klimit)
-			return LZ4E_compress_generic(ctx,
-				srcSg, dstSg, srcIter, dstIter,
-				noLimit, byU16, noDict,
-				noDictIssue, (U32)acceleration);
-		else
+//		if (inputSize < LZ4_64Klimit)
+//			return LZ4E_compress_generic(ctx,
+//				srcSg, dstSg, srcIter, dstIter,
+//				noLimit, byU16, noDict,
+//				noDictIssue, (U32)acceleration);
+//		else
 			return LZ4E_compress_generic(ctx,
 				srcSg, dstSg, srcIter, dstIter,
 				noLimit, tableType, noDict,
 				noDictIssue, (U32)acceleration);
 	} else {
-		if (inputSize < LZ4_64Klimit)
-			return LZ4E_compress_generic(ctx,
-				srcSg, dstSg, srcIter, dstIter,
-				limitedOutput, byU16, noDict,
-				noDictIssue, (U32)acceleration);
-		else
+//		if (inputSize < LZ4_64Klimit)
+//			return LZ4E_compress_generic(ctx,
+//				srcSg, dstSg, srcIter, dstIter,
+//				limitedOutput, byU16, noDict,
+//				noDictIssue, (U32)acceleration);
+//		else
 			return LZ4E_compress_generic(ctx,
 				srcSg, dstSg, srcIter, dstIter,
 				limitedOutput, tableType, noDict,

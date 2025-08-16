@@ -83,7 +83,7 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		goto free_chunk;
 	}
 
-	wrkmem = kzalloc(LZ4_MEM_COMPRESS, GFP_NOIO);
+	wrkmem = kzalloc(LZ4E_MEM_COMPRESS, GFP_NOIO);
 	chunk->wrkmem = wrkmem;
 	if (!wrkmem) {
 		LZ4E_PR_ERR("failed to allocate working memory");
