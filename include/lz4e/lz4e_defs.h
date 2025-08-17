@@ -548,56 +548,50 @@ static FORCE_INLINE void LZ4E_memcpy(struct bio_vec *dst, const struct bio_vec *
 		LZ4E_copy8(dst, src, dstIter, srcIter);
 }
 
-static FORCE_INLINE unsigned int LZ4E_NbCommonBytes(register size_t val)
-{
-#if LZ4_LITTLE_ENDIAN
-	return (unsigned)(__ffs(val) >> 3);
-#else
-	return (BITS_PER_LONG - 1 - __fls(val)) >> 3;
-#endif
-}
-
-static FORCE_INLINE unsigned int LZ4E_count(
+static FORCE_INLINE unsigned LZ4E_count(
 	const struct bio_vec *sgBuf,
 	struct bvec_iter inIter,
 	struct bvec_iter matchIter,
-	const size_t countLimit)
+	const unsigned countLimit)
 {
 	unsigned count = 0;
 
-	while (likely(count <= countLimit - STEPSIZE)) {
+	for (int i = 0; i < countLimit / STEPSIZE; ++i) {
 		U64 const inVal = LZ4E_read64(sgBuf, inIter);
 		U64 const matchVal = LZ4E_read64(sgBuf, matchIter);
 		U64 const diff = inVal ^ matchVal;
 
-		if (!diff) {
-			LZ4E_advance(sgBuf, &inIter, &count, STEPSIZE);
-			bvec_iter_advance(sgBuf, &matchIter, STEPSIZE);
-			continue;
+		if (diff) {
+			count += LZ4_NbCommonBytes(diff);
+			return count;
 		}
 
-		count += LZ4E_NbCommonBytes(diff);
+		count += STEPSIZE;
 
-		return count;
+		bvec_iter_advance(sgBuf, &inIter, STEPSIZE);
+		bvec_iter_advance(sgBuf, &matchIter, STEPSIZE);
 	}
 
-	if ((count <= countLimit - 4)
-		&& (LZ4E_read32(sgBuf, inIter)
-			== LZ4E_read32(sgBuf, matchIter))) {
-		LZ4E_advance(sgBuf, &inIter, &count, 4);
+	unsigned rem = countLimit % STEPSIZE;
+
+	if (rem >= 4 && LZ4E_read32(sgBuf, inIter)
+			== LZ4E_read32(sgBuf, matchIter)) {
+		count += 4;
+		rem -= 4;
+		bvec_iter_advance(sgBuf, &inIter, 4);
 		bvec_iter_advance(sgBuf, &matchIter, 4);
 	}
 
-	if ((count <= countLimit - 2)
-		&& (LZ4E_read16(sgBuf, inIter)
-			== LZ4E_read16(sgBuf, matchIter))) {
-		LZ4E_advance(sgBuf, &inIter, &count, 2);
+	if (rem >= 2 && LZ4E_read16(sgBuf, inIter)
+			== LZ4E_read16(sgBuf, matchIter)) {
+		count += 2;
+		rem -= 2;
+		bvec_iter_advance(sgBuf, &inIter, 2);
 		bvec_iter_advance(sgBuf, &matchIter, 2);
 	}
 
-	if ((count <= countLimit - 1)
-		&& (LZ4E_read8(sgBuf, inIter)
-			== LZ4E_read8(sgBuf, matchIter)))
+	if (rem && LZ4E_read8(sgBuf, inIter)
+			== LZ4E_read8(sgBuf, matchIter))
 		count++;
 
 	return count;
@@ -608,17 +602,17 @@ static FORCE_INLINE unsigned int LZ4E_count(
  **************************************/
 typedef union {
     struct {
-        u8 bvec_idx  : 8;
-        u32 bvec_off : 24;
+        BYTE bvec_idx : 8;
+        U32 bvec_off  : 24;
     } addr;
-    u32 raw;
+    U32 raw;
 } __packed LZ4E_tbl_addr_t;
 
 #define LZ4E_TBL_ADDR_FROM_ITER(iter) \
 	((LZ4E_tbl_addr_t) { \
 		.addr = { \
-			.bvec_idx = (u8)((iter).bi_idx), \
-			.bvec_off = (u32)((iter).bi_bvec_done) \
+			.bvec_idx = (BYTE)((iter).bi_idx), \
+			.bvec_off = (U32)((iter).bi_bvec_done) \
 		} \
 	})
 

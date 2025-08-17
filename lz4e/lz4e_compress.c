@@ -297,7 +297,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 
 		/* Encode Literals */
 		{
-			unsigned const int litLength = srcPos - anchorPos;
+			const unsigned int litLength = srcPos - anchorPos;
 
 			tokenIter = *dstIter;
 			LZ4E_advance1(dstSg, dstIter, &dstPos);
@@ -442,7 +442,7 @@ _next_match:
 _last_literals:
 	/* Encode Last Literals */
 	{
-		unsigned const int lastRun = inputSize - anchorPos;
+		const size_t lastRun = (size_t)(inputSize - anchorPos);
 
 		if ((outputLimited) &&
 			/* Check output buffer overflow */
