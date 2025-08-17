@@ -116,18 +116,17 @@ typedef uintptr_t uptrval;
 /*
  * advance bvec iterator by exactly 1 byte
  */
-static FORCE_INLINE void LZ4E_iter_advance1(const struct bio_vec *sgBuf,
+static FORCE_INLINE void LZ4E_iter_advance1(const struct bio_vec *bvecs,
 		struct bvec_iter *iter)
 {
 	unsigned idx = iter->bi_idx;
 	unsigned done = iter->bi_bvec_done;
-	struct bio_vec bvec = sgBuf[idx];
 
 	BUG_ON(iter->bi_size == 0);
 
 	done++;
 
-	if (done == bvec.bv_len) {
+	if (done == bvecs[idx].bv_len) {
 		idx++;
 		done = 0;
 	}
@@ -140,7 +139,7 @@ static FORCE_INLINE void LZ4E_iter_advance1(const struct bio_vec *sgBuf,
 /*
  * roll bvec iterator back by exactly 1 byte
  */
-static FORCE_INLINE void LZ4E_iter_rollback1(const struct bio_vec *sgBuf,
+static FORCE_INLINE void LZ4E_iter_rollback1(const struct bio_vec *bvecs,
 		struct bvec_iter *iter)
 {
 	unsigned idx = iter->bi_idx;
@@ -150,7 +149,7 @@ static FORCE_INLINE void LZ4E_iter_rollback1(const struct bio_vec *sgBuf,
 		BUG_ON(idx == 0);
 
 		idx--;
-		done = sgBuf[idx].bv_len;
+		done = bvecs[idx].bv_len;
 	}
 
 	done--;
@@ -161,30 +160,30 @@ static FORCE_INLINE void LZ4E_iter_rollback1(const struct bio_vec *sgBuf,
 }
 
 static FORCE_INLINE void LZ4E_advance(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	struct bvec_iter *iter,
 	U32 *pos,
 	const unsigned bytes)
 {
-	bvec_iter_advance(sgBuf, iter, bytes);
+	bvec_iter_advance(bvecs, iter, bytes);
 	*pos += bytes;
 }
 
 static FORCE_INLINE void LZ4E_advance1(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	struct bvec_iter *iter,
 	U32 *pos)
 {
-	LZ4E_iter_advance1(sgBuf, iter);
+	LZ4E_iter_advance1(bvecs, iter);
 	(*pos)++;
 }
 
 static FORCE_INLINE void LZ4E_rollback1(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	struct bvec_iter *iter,
 	U32 *pos)
 {
-	LZ4E_iter_rollback1(sgBuf, iter);
+	LZ4E_iter_rollback1(bvecs, iter);
 	(*pos)--;
 }
 
@@ -549,7 +548,7 @@ static FORCE_INLINE void LZ4E_memcpy(struct bio_vec *dst, const struct bio_vec *
 }
 
 static FORCE_INLINE unsigned LZ4E_count(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	struct bvec_iter inIter,
 	struct bvec_iter matchIter,
 	const unsigned countLimit)
@@ -557,8 +556,8 @@ static FORCE_INLINE unsigned LZ4E_count(
 	unsigned count = 0;
 
 	for (int i = 0; i < countLimit / STEPSIZE; ++i) {
-		U64 const inVal = LZ4E_read64(sgBuf, inIter);
-		U64 const matchVal = LZ4E_read64(sgBuf, matchIter);
+		U64 const inVal = LZ4E_read64(bvecs, inIter);
+		U64 const matchVal = LZ4E_read64(bvecs, matchIter);
 		U64 const diff = inVal ^ matchVal;
 
 		if (diff) {
@@ -568,30 +567,30 @@ static FORCE_INLINE unsigned LZ4E_count(
 
 		count += STEPSIZE;
 
-		bvec_iter_advance(sgBuf, &inIter, STEPSIZE);
-		bvec_iter_advance(sgBuf, &matchIter, STEPSIZE);
+		bvec_iter_advance(bvecs, &inIter, STEPSIZE);
+		bvec_iter_advance(bvecs, &matchIter, STEPSIZE);
 	}
 
 	unsigned rem = countLimit % STEPSIZE;
 
-	if (rem >= 4 && LZ4E_read32(sgBuf, inIter)
-			== LZ4E_read32(sgBuf, matchIter)) {
+	if (rem >= 4 && LZ4E_read32(bvecs, inIter)
+			== LZ4E_read32(bvecs, matchIter)) {
 		count += 4;
 		rem -= 4;
-		bvec_iter_advance(sgBuf, &inIter, 4);
-		bvec_iter_advance(sgBuf, &matchIter, 4);
+		bvec_iter_advance(bvecs, &inIter, 4);
+		bvec_iter_advance(bvecs, &matchIter, 4);
 	}
 
-	if (rem >= 2 && LZ4E_read16(sgBuf, inIter)
-			== LZ4E_read16(sgBuf, matchIter)) {
+	if (rem >= 2 && LZ4E_read16(bvecs, inIter)
+			== LZ4E_read16(bvecs, matchIter)) {
 		count += 2;
 		rem -= 2;
-		bvec_iter_advance(sgBuf, &inIter, 2);
-		bvec_iter_advance(sgBuf, &matchIter, 2);
+		bvec_iter_advance(bvecs, &inIter, 2);
+		bvec_iter_advance(bvecs, &matchIter, 2);
 	}
 
-	if (rem && LZ4E_read8(sgBuf, inIter)
-			== LZ4E_read8(sgBuf, matchIter))
+	if (rem && LZ4E_read8(bvecs, inIter)
+			== LZ4E_read8(bvecs, matchIter))
 		count++;
 
 	return count;
@@ -616,10 +615,10 @@ typedef union {
 		} \
 	})
 
-#define LZ4E_TBL_ADDR_TO_ITER(addr, bvRemSize) \
+#define LZ4E_TBL_ADDR_TO_ITER(addr, bvIterSize) \
 	((struct bvec_iter) { \
 		.bi_idx = (addr).addr.bvec_idx, \
-		.bi_size = (bvRemSize)[(addr).addr.bvec_idx] - (addr).addr.bvec_off, \
+		.bi_size = (bvIterSize)[(addr).addr.bvec_idx] - (addr).addr.bvec_off, \
 		.bi_bvec_done = (addr).addr.bvec_off \
 	 })
 

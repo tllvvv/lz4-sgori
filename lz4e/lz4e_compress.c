@@ -79,16 +79,16 @@ static FORCE_INLINE U32 LZ4_hash5(
 }
 
 static FORCE_INLINE U32 LZ4E_hashPosition(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	const struct bvec_iter pos,
 	const tableType_t tableType)
 {
 #if LZ4_ARCH64
 	if (tableType == byU32)
-		return LZ4_hash5(LZ4E_read64(sgBuf, pos), tableType);
+		return LZ4_hash5(LZ4E_read64(bvecs, pos), tableType);
 #endif
 
-	return LZ4_hash4(LZ4E_read32(sgBuf, pos), tableType);
+	return LZ4_hash4(LZ4E_read32(bvecs, pos), tableType);
 }
 
 static void LZ4E_putPositionOnHash(
@@ -103,12 +103,12 @@ static void LZ4E_putPositionOnHash(
 }
 
 static FORCE_INLINE void LZ4E_putPosition(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	const struct bvec_iter pos,
 	void *tableBase,
 	const tableType_t tableType)
 {
-	U32 const h = LZ4E_hashPosition(sgBuf, pos, tableType);
+	U32 const h = LZ4E_hashPosition(bvecs, pos, tableType);
 
 	LZ4E_putPositionOnHash(pos, h, tableBase, tableType);
 }
@@ -116,41 +116,47 @@ static FORCE_INLINE void LZ4E_putPosition(
 static struct bvec_iter LZ4E_getPositionOnHash(
 	const U32 h,
 	void *tableBase,
-	void *remSizeBase,
-	const tableType_t tableType)
+	void *biSizeBase,
+	const tableType_t tableType,
+	const struct bvec_iter baseIter)
 {
 	const LZ4E_tbl_addr_t *hashTable = (const LZ4E_tbl_addr_t *)tableBase;
-	const U32 *bvRemSize = (const U32 *)remSizeBase;
+	const U32 *bvIterSize = (const U32 *)biSizeBase;
 	const LZ4E_tbl_addr_t addr = hashTable[h];
 
-	return LZ4E_TBL_ADDR_TO_ITER(addr, bvRemSize);
+	if (addr.raw == 0)
+		return baseIter;
+
+	return LZ4E_TBL_ADDR_TO_ITER(addr, bvIterSize);
 }
 
 static FORCE_INLINE struct bvec_iter LZ4E_getPosition(
-	const struct bio_vec *sgBuf,
+	const struct bio_vec *bvecs,
 	const struct bvec_iter pos,
 	void *tableBase,
-	void *remSizeBase,
-	const tableType_t tableType)
+	void *biSizeBase,
+	const tableType_t tableType,
+	const struct bvec_iter baseIter)
 {
-	U32 const h = LZ4E_hashPosition(sgBuf, pos, tableType);
+	U32 const h = LZ4E_hashPosition(bvecs, pos, tableType);
 
-	return LZ4E_getPositionOnHash(h, tableBase, remSizeBase, tableType);
+	return LZ4E_getPositionOnHash(
+			h, tableBase, biSizeBase, tableType, baseIter);
 }
 
-static bool LZ4E_fillBvRemSize(
-	U32 *bvRemSize,
-	const struct bio_vec *sgBuf,
+static bool LZ4E_fillBvIterSize(
+	U32 *bvIterSize,
+	const struct bio_vec *bvecs,
 	const struct bvec_iter start)
 {
 	struct bvec_iter iter;
 	struct bio_vec curBvec;
 
-	for_each_bvec(curBvec, sgBuf, iter, start) {
+	for_each_bvec(curBvec, bvecs, iter, start) {
 		if (iter.bi_idx >= BIO_MAX_VECS)
 			return false;
 
-		bvRemSize[iter.bi_idx] = iter.bi_size;
+		bvIterSize[iter.bi_idx] = iter.bi_size;
 	}
 
 	return true;
@@ -163,8 +169,8 @@ static bool LZ4E_fillBvRemSize(
  */
 static FORCE_INLINE int LZ4E_compress_generic(
 	LZ4E_stream_t_internal * const dictPtr,
-	const struct bio_vec * const srcSg,
-	struct bio_vec * const dstSg,
+	const struct bio_vec * const src,
+	struct bio_vec * const dst,
 	struct bvec_iter * const srcIter,
 	struct bvec_iter * const dstIter,
 	const limitedOutput_directive outputLimited,
@@ -220,15 +226,15 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	}
 
 	/* Fill number of bytes remaining for each bvec */
-	if (!LZ4E_fillBvRemSize(dictPtr->bvRemSize, srcSg, srcStart)) {
+	if (!LZ4E_fillBvIterSize(dictPtr->bvIterSize, src, srcStart)) {
 		/* Too many bvecs */
 		return 0;
 	}
 
 	/* First Byte */
-	LZ4E_putPosition(srcSg, *srcIter, dictPtr->hashTable, tableType);
-	LZ4E_advance1(srcSg, srcIter, &srcPos);
-	forwardH = LZ4E_hashPosition(srcSg, *srcIter, tableType);
+	LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType);
+	LZ4E_advance1(src, srcIter, &srcPos);
+	forwardH = LZ4E_hashPosition(src, *srcIter, tableType);
 
 	/* Main Loop */
 	for ( ; ; ) {
@@ -249,7 +255,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 
 				*srcIter = forwardIter;
 				srcPos = forwardPos;
-				LZ4E_advance(srcSg, &forwardIter, &forwardPos, step);
+				LZ4E_advance(src, &forwardIter, &forwardPos, step);
 				step = (searchMatchNb++ >> LZ4_SKIPTRIGGER);
 
 				if (unlikely(forwardPos > mflimit))
@@ -257,8 +263,8 @@ static FORCE_INLINE int LZ4E_compress_generic(
 
 				matchIter = LZ4E_getPositionOnHash(h,
 					dictPtr->hashTable,
-					dictPtr->bvRemSize,
-					tableType);
+					dictPtr->bvIterSize,
+					tableType, srcStart);
 				matchPos = LZ4E_ITER_POS(matchIter, srcStart);
 
 //				if (dict == usingExtDict) {
@@ -270,7 +276,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 //						lowLimit = (const BYTE *)source;
 //				}	 }
 
-				forwardH = LZ4E_hashPosition(srcSg,
+				forwardH = LZ4E_hashPosition(src,
 					forwardIter, tableType);
 
 				LZ4E_putPositionOnHash(*srcIter, h,
@@ -278,19 +284,19 @@ static FORCE_INLINE int LZ4E_compress_generic(
 			} while (((tableType == byU16)
 					? 0
 					: (matchPos + MAX_DISTANCE < srcPos))
-				|| (LZ4E_read32(srcSg, matchIter)
-					!= LZ4E_read32(srcSg, *srcIter)));
+				|| (LZ4E_read32(src, matchIter)
+					!= LZ4E_read32(src, *srcIter)));
 		}
 
 		/* Catch up */
 		while ((srcPos > anchorPos) && (matchPos > 0)) {
-			LZ4E_rollback1(srcSg, srcIter, &srcPos);
-			LZ4E_rollback1(srcSg, &matchIter, &matchPos);
+			LZ4E_rollback1(src, srcIter, &srcPos);
+			LZ4E_rollback1(src, &matchIter, &matchPos);
 
-			if (likely(LZ4E_read8(srcSg, *srcIter)
-				!= LZ4E_read8(srcSg, matchIter))) {
-				LZ4E_advance1(srcSg, srcIter, &srcPos);
-				LZ4E_advance1(srcSg, &matchIter, &matchPos);
+			if (likely(LZ4E_read8(src, *srcIter)
+				!= LZ4E_read8(src, matchIter))) {
+				LZ4E_advance1(src, srcIter, &srcPos);
+				LZ4E_advance1(src, &matchIter, &matchPos);
 				break;
 			}
 		}
@@ -300,7 +306,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 			const unsigned int litLength = srcPos - anchorPos;
 
 			tokenIter = *dstIter;
-			LZ4E_advance1(dstSg, dstIter, &dstPos);
+			LZ4E_advance1(dst, dstIter, &dstPos);
 
 			if ((outputLimited) &&
 				/* Check output buffer overflow */
@@ -315,23 +321,23 @@ static FORCE_INLINE int LZ4E_compress_generic(
 				token = (RUN_MASK << ML_BITS);
 
 				for (; len >= 255; len -= 255) {
-					LZ4E_write8(dstSg, 255, *dstIter);
-					LZ4E_advance1(dstSg, dstIter, &dstPos);
+					LZ4E_write8(dst, 255, *dstIter);
+					LZ4E_advance1(dst, dstIter, &dstPos);
 				}
-				LZ4E_write8(dstSg, (BYTE)len, *dstIter);
-				LZ4E_advance1(dstSg, dstIter, &dstPos);
+				LZ4E_write8(dst, (BYTE)len, *dstIter);
+				LZ4E_advance1(dst, dstIter, &dstPos);
 			} else
 				token = (BYTE)(litLength << ML_BITS);
 
 			/* Copy Literals */
-			LZ4E_wildCopy(dstSg, srcSg, *dstIter, anchorIter, litLength);
-			LZ4E_advance(dstSg, dstIter, &dstPos, litLength);
+			LZ4E_wildCopy(dst, src, *dstIter, anchorIter, litLength);
+			LZ4E_advance(dst, dstIter, &dstPos, litLength);
 		}
 
 _next_match:
 		/* Encode Offset */
-		LZ4E_writeLE16(dstSg, (U16)(srcPos - matchPos), *dstIter);
-		LZ4E_advance(dstSg, dstIter, &dstPos, 2);
+		LZ4E_writeLE16(dst, (U16)(srcPos - matchPos), *dstIter);
+		LZ4E_advance(dst, dstIter, &dstPos, 2);
 
 		/* Encode MatchLength */
 		{
@@ -362,10 +368,10 @@ _next_match:
 //				}
 //			} else {
 //
-			LZ4E_advance(srcSg, srcIter, &srcPos, MINMATCH);
-			LZ4E_advance(srcSg, &matchIter, &matchPos, MINMATCH);
-			matchCode = LZ4E_count(srcSg, *srcIter, matchIter, matchlimit - srcPos);
-			LZ4E_advance(srcSg, srcIter, &srcPos, matchCode);
+			LZ4E_advance(src, srcIter, &srcPos, MINMATCH);
+			LZ4E_advance(src, &matchIter, &matchPos, MINMATCH);
+			matchCode = LZ4E_count(src, *srcIter, matchIter, matchlimit - srcPos);
+			LZ4E_advance(src, srcIter, &srcPos, matchCode);
 
 			if (outputLimited &&
 				/* Check output buffer overflow */
@@ -377,21 +383,21 @@ _next_match:
 			if (matchCode >= ML_MASK) {
 				token += ML_MASK;
 				matchCode -= ML_MASK;
-				LZ4E_write32(dstSg, 0xFFFFFFFF, *dstIter);
+				LZ4E_write32(dst, 0xFFFFFFFF, *dstIter);
 
 				while (matchCode >= 4 * 255) {
-					LZ4E_advance(dstSg, dstIter, &dstPos, 4);
-					LZ4E_write32(dstSg, 0xFFFFFFFF, *dstIter);
+					LZ4E_advance(dst, dstIter, &dstPos, 4);
+					LZ4E_write32(dst, 0xFFFFFFFF, *dstIter);
 					matchCode -= 4 * 255;
 				}
 
-				LZ4E_advance(dstSg, dstIter, &dstPos, matchCode / 255);
-				LZ4E_write8(dstSg, (BYTE)(matchCode % 255), *dstIter);
-				LZ4E_advance1(dstSg, dstIter, &dstPos);
+				LZ4E_advance(dst, dstIter, &dstPos, matchCode / 255);
+				LZ4E_write8(dst, (BYTE)(matchCode % 255), *dstIter);
+				LZ4E_advance1(dst, dstIter, &dstPos);
 			} else
 				token += (BYTE)(matchCode);
 
-			LZ4E_write8(dstSg, token, tokenIter);
+			LZ4E_write8(dst, token, tokenIter);
 		}
 
 		anchorIter = *srcIter;
@@ -403,14 +409,15 @@ _next_match:
 
 		/* TODO:(bgch): maybe remove this */
 		/* Fill table */
-		LZ4E_rollback1(srcSg, srcIter, &srcPos);
-		LZ4E_rollback1(srcSg, srcIter, &srcPos);
-		LZ4E_putPosition(srcSg, *srcIter, dictPtr->hashTable, tableType);
-		LZ4E_advance(srcSg, srcIter, &srcPos, 2);
+		LZ4E_rollback1(src, srcIter, &srcPos);
+		LZ4E_rollback1(src, srcIter, &srcPos);
+		LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType);
+		LZ4E_advance(src, srcIter, &srcPos, 2);
 
 		/* Test next position */
-		matchIter = LZ4E_getPosition(srcSg, *srcIter,
-			dictPtr->hashTable, dictPtr->bvRemSize, tableType);
+		matchIter = LZ4E_getPosition(src, *srcIter,
+			dictPtr->hashTable, dictPtr->bvIterSize,
+			tableType, srcStart);
 		matchPos = LZ4E_ITER_POS(matchIter, srcStart);
 
 //		if (dict == usingExtDict) {
@@ -423,20 +430,20 @@ _next_match:
 //			}
 //		}
 
-		LZ4E_putPosition(srcSg, *srcIter, dictPtr->hashTable, tableType);
+		LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType);
 
 		if ((matchPos + MAX_DISTANCE >= srcPos)
-			&& (LZ4E_read32(srcSg, *srcIter)
-				== LZ4E_read32(srcSg, matchIter))) {
+			&& (LZ4E_read32(src, *srcIter)
+				== LZ4E_read32(src, matchIter))) {
 			token = 0;
 			tokenIter = *dstIter;
-			LZ4E_advance1(dstSg, dstIter, &dstPos);
+			LZ4E_advance1(dst, dstIter, &dstPos);
 			goto _next_match;
 		}
 
 		/* Prepare next loop */
-		LZ4E_advance1(srcSg, srcIter, &srcPos);
-		forwardH = LZ4E_hashPosition(srcSg, *srcIter, tableType);
+		LZ4E_advance1(src, srcIter, &srcPos);
+		forwardH = LZ4E_hashPosition(src, *srcIter, tableType);
 	}
 
 _last_literals:
@@ -453,21 +460,21 @@ _last_literals:
 		if (lastRun >= RUN_MASK) {
 			size_t accumulator = lastRun - RUN_MASK;
 
-			LZ4E_write8(dstSg, RUN_MASK << ML_BITS, *dstIter);
-			LZ4E_advance1(dstSg, dstIter, &dstPos);
+			LZ4E_write8(dst, RUN_MASK << ML_BITS, *dstIter);
+			LZ4E_advance1(dst, dstIter, &dstPos);
 
 			for (; accumulator >= 255; accumulator -= 255) {
-				LZ4E_write8(dstSg, 255, *dstIter);
-				LZ4E_advance1(dstSg, dstIter, &dstPos);
+				LZ4E_write8(dst, 255, *dstIter);
+				LZ4E_advance1(dst, dstIter, &dstPos);
 			}
-			LZ4E_write8(dstSg, (BYTE)accumulator, *dstIter);
-			LZ4E_advance1(dstSg, dstIter, &dstPos);
+			LZ4E_write8(dst, (BYTE)accumulator, *dstIter);
+			LZ4E_advance1(dst, dstIter, &dstPos);
 		} else {
-			LZ4E_write8(dstSg, (BYTE)(lastRun << ML_BITS), *dstIter);
-			LZ4E_advance1(dstSg, dstIter, &dstPos);
+			LZ4E_write8(dst, (BYTE)(lastRun << ML_BITS), *dstIter);
+			LZ4E_advance1(dst, dstIter, &dstPos);
 		}
 
-		LZ4E_memcpy(dstSg, srcSg, *dstIter, anchorIter, lastRun);
+		LZ4E_memcpy(dst, src, *dstIter, anchorIter, lastRun);
 		dstPos += lastRun;
 	}
 
@@ -477,8 +484,8 @@ _last_literals:
 
 static int LZ4E_compress_fast_extState(
 	void *state,
-	const struct bio_vec *srcSg,
-	struct bio_vec *dstSg,
+	const struct bio_vec *src,
+	struct bio_vec *dst,
 	struct bvec_iter *srcIter,
 	struct bvec_iter *dstIter,
 	int acceleration)
@@ -496,31 +503,31 @@ static int LZ4E_compress_fast_extState(
 	if (maxOutputSize >= LZ4_COMPRESSBOUND(inputSize)) {
 //		if (inputSize < LZ4_64Klimit)
 //			return LZ4E_compress_generic(ctx,
-//				srcSg, dstSg, srcIter, dstIter,
+//				src, dst, srcIter, dstIter,
 //				noLimit, byU16, noDict,
 //				noDictIssue, (U32)acceleration);
 //		else
 			return LZ4E_compress_generic(ctx,
-				srcSg, dstSg, srcIter, dstIter,
+				src, dst, srcIter, dstIter,
 				noLimit, tableType, noDict,
 				noDictIssue, (U32)acceleration);
 	} else {
 //		if (inputSize < LZ4_64Klimit)
 //			return LZ4E_compress_generic(ctx,
-//				srcSg, dstSg, srcIter, dstIter,
+//				src, dst, srcIter, dstIter,
 //				limitedOutput, byU16, noDict,
 //				noDictIssue, (U32)acceleration);
 //		else
 			return LZ4E_compress_generic(ctx,
-				srcSg, dstSg, srcIter, dstIter,
+				src, dst, srcIter, dstIter,
 				limitedOutput, tableType, noDict,
 				noDictIssue, (U32)acceleration);
 	}
 }
 
-int LZ4E_compress_default(const struct bio_vec *srcSg, struct bio_vec *dstSg,
+int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
 	struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem)
 {
-	return LZ4E_compress_fast_extState(wrkmem, srcSg, dstSg, srcIter,
+	return LZ4E_compress_fast_extState(wrkmem, src, dst, srcIter,
 		dstIter, LZ4_ACCELERATION_DEFAULT);
 }
