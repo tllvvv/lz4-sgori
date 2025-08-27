@@ -253,13 +253,13 @@ static FORCE_INLINE int LZ4E_compress_generic(
 			do {
 				U32 const h = forwardH;
 
+				if (unlikely(forwardPos + step > mflimit))
+					goto _last_literals;
+
 				*srcIter = forwardIter;
 				srcPos = forwardPos;
 				LZ4E_advance(src, &forwardIter, &forwardPos, step);
 				step = (searchMatchNb++ >> LZ4_SKIPTRIGGER);
-
-				if (unlikely(forwardPos > mflimit))
-					goto _last_literals;
 
 				matchIter = LZ4E_getPositionOnHash(h,
 					dictPtr->hashTable,

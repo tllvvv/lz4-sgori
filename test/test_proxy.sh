@@ -31,8 +31,8 @@ test2() {
 }
 
 test3() {
-	dd if=$PROXY_TEST_FILE3 of=$TEST_DEVICE bs=36k count=8
-	dd if=$TEST_DEVICE of=$PROXY_OUTPUT_FILE3 bs=36k count=8
+	dd if=$PROXY_TEST_FILE3 of=$TEST_DEVICE bs=36k count=8 oflag=direct
+	dd if=$TEST_DEVICE of=$PROXY_OUTPUT_FILE3 bs=36k count=8 iflag=direct
 	compare_files $PROXY_TEST_FILE3 $PROXY_OUTPUT_FILE3 $PROXY_TEST_FILE_LEN3
 }
 
