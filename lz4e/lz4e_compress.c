@@ -198,6 +198,8 @@ static FORCE_INLINE int LZ4E_compress_generic(
 		return 0;
 	}
 
+//	TODO:(bgch): dict impl
+//
 //	switch (dict) {
 //	case noDict:
 //	default:
@@ -267,6 +269,8 @@ static FORCE_INLINE int LZ4E_compress_generic(
 					tableType, srcStart);
 				matchPos = LZ4E_ITER_POS(matchIter, srcStart);
 
+//				TODO:(bgch): dict impl
+//
 //				if (dict == usingExtDict) {
 //					if (match < (const BYTE *)source) {
 //						refDelta = dictDelta;
@@ -343,6 +347,8 @@ _next_match:
 		{
 			unsigned int matchCode;
 
+//			TODO:(bgch): dict impl
+//
 //			if ((dict == usingExtDict)
 //				&& (lowLimit == dictionary)) {
 //				const BYTE *limit;
@@ -420,6 +426,8 @@ _next_match:
 			tableType, srcStart);
 		matchPos = LZ4E_ITER_POS(matchIter, srcStart);
 
+//		TODO:(bgch): dict impl
+//
 //		if (dict == usingExtDict) {
 //			if (match < (const BYTE *)source) {
 //				refDelta = dictDelta;
@@ -501,27 +509,14 @@ static int LZ4E_compress_fast_extState(
 		acceleration = LZ4_ACCELERATION_DEFAULT;
 
 	if (maxOutputSize >= LZ4_COMPRESSBOUND(inputSize)) {
-//		if (inputSize < LZ4_64Klimit)
-//			return LZ4E_compress_generic(ctx,
-//				src, dst, srcIter, dstIter,
-//				noLimit, byU16, noDict,
-//				noDictIssue, (U32)acceleration);
-//		else
-			return LZ4E_compress_generic(ctx,
-				src, dst, srcIter, dstIter,
-				noLimit, tableType, noDict,
-				noDictIssue, (U32)acceleration);
+		return LZ4E_compress_generic(ctx, src, dst, srcIter, dstIter,
+			noLimit, tableType, noDict,
+			noDictIssue, (U32)acceleration);
 	} else {
-//		if (inputSize < LZ4_64Klimit)
-//			return LZ4E_compress_generic(ctx,
-//				src, dst, srcIter, dstIter,
-//				limitedOutput, byU16, noDict,
-//				noDictIssue, (U32)acceleration);
-//		else
-			return LZ4E_compress_generic(ctx,
-				src, dst, srcIter, dstIter,
-				limitedOutput, tableType, noDict,
-				noDictIssue, (U32)acceleration);
+		return LZ4E_compress_generic(ctx,
+			src, dst, srcIter, dstIter,
+			limitedOutput, tableType, noDict,
+			noDictIssue, (U32)acceleration);
 	}
 }
 

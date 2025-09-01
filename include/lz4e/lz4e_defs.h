@@ -498,9 +498,19 @@ static FORCE_INLINE void LZ4E_copy32(struct bio_vec *dst, const struct bio_vec *
 static FORCE_INLINE void LZ4E_copy64(struct bio_vec *dst, const struct bio_vec *src,
 		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
+#if LZ4_ARCH64
 	U64 val = LZ4E_read64(src, srcIter);
 
 	LZ4E_write64(dst, val, dstIter);
+#else
+	U32 a = LZ4E_read32(src, srcIter);
+	bvec_iter_advance(src, &srcIter, 4)
+	U32 b = LZ4E_read32(src, srcIter);
+
+	LZ4E_write32(dst, a, dstIter);
+	bvec_iter_advance(dst, &dstIter, 4);
+	LZ4E_write32(dst, b, dstIter);
+#endif
 }
 
 /*
