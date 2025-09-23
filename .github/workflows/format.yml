@@ -1,0 +1,13 @@
+name: format
+on: [push, pull_request]
+jobs:
+  check-with-clang-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+      - name: Run clang-format
+        run: sudo sh scripts/check_with_clang_format.sh

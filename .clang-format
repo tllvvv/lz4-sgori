@@ -533,7 +533,7 @@ PenaltyExcessCharacter: 100
 PenaltyReturnTypeOnItsOwnLine: 60
 
 PointerAlignment: Right
-ReflowComments: Always
+ReflowComments: true
 SortIncludes: CaseInsensitive
 SpaceAfterCStyleCast: false
 SpaceAfterTemplateKeyword: true
