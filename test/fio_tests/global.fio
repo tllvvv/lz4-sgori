@@ -1,0 +1,7 @@
+filename=/dev/lz4e0
+direct=1
+thread=1
+numjobs=1
+ioengine=sync
+rw=rw
+size=8M

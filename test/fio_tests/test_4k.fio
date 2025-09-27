@@ -1,0 +1,5 @@
+[global]
+include global.fio
+
+[test]
+bs=4k
