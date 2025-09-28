@@ -11,7 +11,7 @@ setup() {
 
 run_test() {
 	file=$1
-	fio $file > /dev/null
+	fio $file --debug=file,io,verify > /dev/null
 }
 
 run_all_tests() {
