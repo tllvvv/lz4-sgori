@@ -100,7 +100,7 @@ typedef uintptr_t uptrval;
 #define GB (1U << 30)
 
 #define MAX_DISTANCE LZ4_DISTANCE_MAX
-#define STEPSIZE 8
+#define STEPSIZE sizeof(size_t)
 
 #define ML_BITS	4
 #define ML_MASK	((1U << ML_BITS) - 1)
@@ -471,6 +471,26 @@ static FORCE_INLINE void LZ4E_write64(struct bio_vec *to, const U64 value,
 	LZ4E_memcpy_to_sg(to, (char *)(&value), iter, 8);
 }
 
+static FORCE_INLINE size_t LZ4E_readArch(const struct bio_vec *from,
+		struct bvec_iter iter)
+{
+#if LZ4_ARCH64
+	return (size_t)LZ4E_read64(from, iter);
+#else
+	return (size_t)LZ4E_read32(from, iter);
+#endif
+}
+
+static FORCE_INLINE void LZ4E_writeArch(struct bio_vec *to, const size_t value,
+		struct bvec_iter iter)
+{
+#if LZ4_ARCH64
+	LZ4E_write64(to, (U64)value, iter);
+#else
+	LZ4E_write32(to, (U32)value, iter);
+#endif
+}
+
 static FORCE_INLINE void LZ4E_copy8(struct bio_vec *dst, const struct bio_vec *src,
 		struct bvec_iter dstIter, struct bvec_iter srcIter)
 {
@@ -566,9 +586,9 @@ static FORCE_INLINE unsigned LZ4E_count(
 	unsigned count = 0;
 
 	for (int i = 0; i < countLimit / STEPSIZE; ++i) {
-		U64 const inVal = LZ4E_read64(bvecs, inIter);
-		U64 const matchVal = LZ4E_read64(bvecs, matchIter);
-		U64 const diff = inVal ^ matchVal;
+		size_t const inVal = LZ4E_readArch(bvecs, inIter);
+		size_t const matchVal = LZ4E_readArch(bvecs, matchIter);
+		size_t const diff = inVal ^ matchVal;
 
 		if (diff) {
 			count += LZ4_NbCommonBytes(diff);
@@ -583,6 +603,7 @@ static FORCE_INLINE unsigned LZ4E_count(
 
 	unsigned rem = countLimit % STEPSIZE;
 
+#if LZ4_ARCH64
 	if (rem >= 4 && LZ4E_read32(bvecs, inIter)
 			== LZ4E_read32(bvecs, matchIter)) {
 		count += 4;
@@ -590,6 +611,7 @@ static FORCE_INLINE unsigned LZ4E_count(
 		bvec_iter_advance(bvecs, &inIter, 4);
 		bvec_iter_advance(bvecs, &matchIter, 4);
 	}
+#endif
 
 	if (rem >= 2 && LZ4E_read16(bvecs, inIter)
 			== LZ4E_read16(bvecs, matchIter)) {
