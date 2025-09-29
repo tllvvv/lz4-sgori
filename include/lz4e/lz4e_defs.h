@@ -38,6 +38,7 @@
 // TODO:(kogora)[f]: mind about LICENSE |^
 
 
+#include <vdso/page.h>
 #include <linux/bio.h>
 #include <linux/bitops.h>
 #include <linux/bvec.h>
@@ -340,35 +341,33 @@ static FORCE_INLINE U16 LZ4E_toLE16(U16 value)
 #endif
 }
 
-static FORCE_INLINE void LZ4E_memcpy_from_bvec(char *to, const struct bio_vec *from,
-		const size_t off, const size_t len)
+static FORCE_INLINE void LZ4E_memcpy_from_bvec(char *to,
+		const struct bio_vec *from, const size_t len)
 {
-	BUG_ON(off + len > from->bv_len);
-	memcpy_from_page(to, from->bv_page, from->bv_offset + off, len);
+	BUG_ON(len > from->bv_len || from->bv_offset + len > PAGE_SIZE);
+	memcpy_from_page(to, from->bv_page, from->bv_offset, len);
 }
 
-static FORCE_INLINE void LZ4E_memcpy_to_bvec(struct bio_vec *to, const char *from,
-		const size_t off, const size_t len)
+static FORCE_INLINE void LZ4E_memcpy_to_bvec(struct bio_vec *to,
+		const char *from, const size_t len)
 {
-	BUG_ON(off + len > to->bv_len);
-	memcpy_to_page(to->bv_page, to->bv_offset + off, from, len);
+	BUG_ON(len > to->bv_len || to->bv_offset + len > PAGE_SIZE);
+	memcpy_to_page(to->bv_page, to->bv_offset, from, len);
 }
 
 static FORCE_INLINE void LZ4E_memcpy_from_sg(char *to, const struct bio_vec *from,
 		struct bvec_iter iter, size_t len)
 {
 	struct bio_vec curBvec;
-	unsigned off;
 	size_t toRead;
 
 	BUG_ON(len > iter.bi_size);
 
 	while (len) {
-		curBvec = from[iter.bi_idx];
-		off = iter.bi_bvec_done;
-		toRead = min_t(size_t, len, curBvec.bv_len - off);
+		curBvec = bvec_iter_bvec(from, iter);
+		toRead = min_t(size_t, len, curBvec.bv_len);
 
-		LZ4E_memcpy_from_bvec(to, &curBvec, off, toRead);
+		LZ4E_memcpy_from_bvec(to, &curBvec, toRead);
 		bvec_iter_advance_single(from, &iter, (unsigned)toRead);
 		to += toRead;
 		len -= toRead;
@@ -379,17 +378,15 @@ static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
 		struct bvec_iter iter, size_t len)
 {
 	struct bio_vec curBvec;
-	unsigned off;
 	size_t toWrite;
 
 	BUG_ON(len > iter.bi_size);
 
 	while (len) {
-		curBvec = to[iter.bi_idx];
-		off = iter.bi_bvec_done;
-		toWrite = min_t(size_t, len, curBvec.bv_len - off);
+		curBvec = bvec_iter_bvec(to, iter);
+		toWrite = min_t(size_t, len, curBvec.bv_len);
 
-		LZ4E_memcpy_to_bvec(&curBvec, from, off, toWrite);
+		LZ4E_memcpy_to_bvec(&curBvec, from, toWrite);
 		bvec_iter_advance_single(to, &iter, (unsigned)toWrite);
 		from += toWrite;
 		len -= toWrite;

@@ -152,11 +152,11 @@ static bool LZ4E_fillBvIterSize(
 	struct bvec_iter iter;
 	struct bio_vec curBvec;
 
-	for_each_bvec(curBvec, bvecs, iter, start) {
+	for_each_mp_bvec(curBvec, bvecs, iter, start) {
 		if (iter.bi_idx >= BIO_MAX_VECS)
 			return false;
 
-		bvIterSize[iter.bi_idx] = iter.bi_size;
+		bvIterSize[iter.bi_idx] = iter.bi_size + iter.bi_bvec_done;
 	}
 
 	return true;

@@ -5,4 +5,5 @@ thread=1
 numjobs=1
 ioengine=sync
 verify=sha256
-size=8M
+size=32m
+number_ios=64
