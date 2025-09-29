@@ -379,7 +379,7 @@ _next_match:
 			matchCode = LZ4E_count(src, *srcIter, matchIter, matchlimit - srcPos);
 			LZ4E_advance(src, srcIter, &srcPos, matchCode);
 
-			if (outputLimited &&
+			if ((outputLimited) &&
 				/* Check output buffer overflow */
 				(unlikely(dstPos +
 					(1 + LASTLITERALS) +

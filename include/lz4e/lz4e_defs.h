@@ -111,7 +111,7 @@ typedef uintptr_t uptrval;
  *	Bvec iterator helpers
  **************************************/
 #define LZ4E_ITER_POS(iter, start) \
-	((start).bi_size - (iter).bi_size)
+	(((start).bi_size) - ((iter).bi_size))
 
 /*
  * advance bvec iterator by exactly 1 byte
@@ -333,22 +333,24 @@ static FORCE_INLINE U16 LZ4E_toLE16(U16 value)
 {
 #if LZ4_LITTLE_ENDIAN
 	return value;
-#endif
-
+#else
 	char *ptr = (char *)(&value);
 	LZ4E_swap(ptr, ptr + 1);
 	return value;
+#endif
 }
 
 static FORCE_INLINE void LZ4E_memcpy_from_bvec(char *to, const struct bio_vec *from,
 		const size_t off, const size_t len)
 {
+	BUG_ON(off + len > from->bv_len);
 	memcpy_from_page(to, from->bv_page, from->bv_offset + off, len);
 }
 
 static FORCE_INLINE void LZ4E_memcpy_to_bvec(struct bio_vec *to, const char *from,
 		const size_t off, const size_t len)
 {
+	BUG_ON(off + len > to->bv_len);
 	memcpy_to_page(to->bv_page, to->bv_offset + off, from, len);
 }
 
@@ -649,9 +651,9 @@ typedef union {
 
 #define LZ4E_TBL_ADDR_TO_ITER(addr, bvIterSize) \
 	((struct bvec_iter) { \
-		.bi_idx = (addr).addr.bvec_idx, \
-		.bi_size = (bvIterSize)[(addr).addr.bvec_idx] - (addr).addr.bvec_off, \
-		.bi_bvec_done = (addr).addr.bvec_off \
+		.bi_idx = ((addr).addr.bvec_idx), \
+		.bi_size = (((bvIterSize)[(addr).addr.bvec_idx]) - ((addr).addr.bvec_off)), \
+		.bi_bvec_done = ((addr).addr.bvec_off) \
 	 })
 
 typedef enum { noLimit = 0, limitedOutput = 1 } limitedOutput_directive;
