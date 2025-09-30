@@ -114,6 +114,13 @@ typedef uintptr_t uptrval;
 #define LZ4E_ITER_POS(iter, start) \
 	(((start).bi_size) - ((iter).bi_size))
 
+#define LZ4E_for_each_bvec(bvl, bio_vec, iter, start) \
+	for (iter = (start); \
+	     ((iter).bi_size) && \
+		((bvl = (bio_vec)[((iter).bi_idx)]), 1); \
+	     bvec_iter_advance_single((bio_vec), &(iter), \
+		mp_bvec_iter_len((bio_vec), (iter))))
+
 /*
  * advance bvec iterator by exactly 1 byte
  */
@@ -631,18 +638,42 @@ static FORCE_INLINE unsigned LZ4E_count(
  *	Hash table addresses
  **************************************/
 typedef union {
-    struct {
-        BYTE bvec_idx : 8;
-        U32 bvec_off  : 24;
-    } addr;
-    U32 raw;
-} __packed LZ4E_tbl_addr_t;
+	struct {
+		/* Max 16 bvecs by 4 kilobytes */
+		BYTE bvec_idx : 4;
+		U16 bvec_off  : 12;
+	} addr;
+	U16 raw;
+} __packed LZ4E_tbl_addr16_t;
 
-#define LZ4E_TBL_ADDR_FROM_ITER(iter, baseIter) \
-	((LZ4E_tbl_addr_t) { \
+typedef union {
+	struct {
+		/* Max 256 bvecs by 16 megabytes */
+		BYTE bvec_idx : 8;
+		U32 bvec_off  : 24;
+	} addr;
+	U32 raw;
+} __packed LZ4E_tbl_addr32_t;
+
+typedef union {
+	struct {
+		/* Max 256 bvecs of maximum size */
+		BYTE bvec_idx : 8;
+		U32 bvec_off  : 32;
+		/* 24 bytes reserved */
+	} addr;
+	U64 raw;
+} __packed LZ4E_tbl_addr64_t;
+
+#define LZ4E_TBL_ADDR16_IDX_LIMIT (1 << 4)
+#define LZ4E_TBL_ADDR16_OFF_LIMIT (1 << 12)
+#define LZ4E_TBL_ADDR32_OFF_LIMIT (1 << 24)
+
+#define LZ4E_TBL_ADDR_FROM_ITER(addrType, iter, baseIter) \
+	((addrType) { \
 		.addr = { \
-			.bvec_idx = (BYTE)(((iter).bi_idx) - ((baseIter).bi_idx)), \
-			.bvec_off = (U32)((iter).bi_bvec_done) \
+			.bvec_idx = (((iter).bi_idx) - ((baseIter).bi_idx)), \
+			.bvec_off = ((iter).bi_bvec_done) \
 		} \
 	})
 
@@ -654,7 +685,7 @@ typedef union {
 	 })
 
 typedef enum { noLimit = 0, limitedOutput = 1 } limitedOutput_directive;
-typedef enum { byPtr, byU32, byU16 } tableType_t;
+typedef enum { byU16 = 1, byU32 = 3, byU64 = 7 } tableType_t;
 
 typedef enum { noDict = 0, withPrefix64k, usingExtDict } dict_directive;
 typedef enum { noDictIssue = 0, dictSmall } dictIssue_directive;

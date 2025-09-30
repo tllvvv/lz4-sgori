@@ -23,17 +23,17 @@
  * LZ4E_stream_t - information structure to track an LZ4E stream.
  */
 typedef struct {
-    uint32_t bvIterSize[BIO_MAX_VECS];
-    uint32_t hashTable[LZ4E_HASH_SIZE_U32];
-    uint32_t currentOffset;
-    uint32_t initCheck;
-    const uint8_t *dictionary;
-    uint8_t *bufferStart;
-    uint32_t dictSize;
+	uint32_t bvIterSize[BIO_MAX_VECS];
+	uint32_t hashTable[LZ4E_HASH_SIZE_U32];
+	uint32_t currentOffset;
+	uint32_t initCheck;
+	const uint8_t *dictionary;
+	uint8_t *bufferStart;
+	uint32_t dictSize;
 } LZ4E_stream_t_internal;
 typedef union {
-    unsigned long long table[LZ4E_STREAMSIZE_U64];
-    LZ4E_stream_t_internal internal_donotuse;
+	unsigned long long table[LZ4E_STREAMSIZE_U64];
+	LZ4E_stream_t_internal internal_donotuse;
 } LZ4E_stream_t;
 
 int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,

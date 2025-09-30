@@ -42,30 +42,36 @@
 #include "include/lz4e/lz4e_defs.h"
 
 static const int LZ4_minLength = (MFLIMIT + 1);
-static const int LZ4_64Klimit = ((64 * KB) + (MFLIMIT - 1));
 
 /*-******************************
  *	Compression functions
  ********************************/
-static FORCE_INLINE U32 LZ4_hash4(
+static FORCE_INLINE U32 LZ4E_getHashLog(tableType_t tableType)
+{
+	if (tableType == byU64)
+		return LZ4E_HASHLOG - 1;
+
+	if (tableType == byU32)
+		return LZ4E_HASHLOG;
+
+	return LZ4E_HASHLOG + 1;
+
+}
+
+static FORCE_INLINE U32 LZ4E_hash4(
 	const U32 sequence,
 	const tableType_t tableType)
 {
-	if (tableType == byU16)
-		return ((sequence * 2654435761U)
-			>> ((MINMATCH * 8) - (LZ4_HASHLOG + 1)));
-	else
-		return ((sequence * 2654435761U)
-			>> ((MINMATCH * 8) - LZ4_HASHLOG));
+	U32 hashLog = LZ4E_getHashLog(tableType);
+
+	return ((sequence * 2654435761U) >> ((MINMATCH * 8) - hashLog));
 }
 
-static FORCE_INLINE U32 LZ4_hash5(
+static FORCE_INLINE U32 LZ4E_hash5(
 	const U64 sequence,
 	const tableType_t tableType)
 {
-	const U32 hashLog = (tableType == byU16)
-		? LZ4_HASHLOG + 1
-		: LZ4_HASHLOG;
+	U32 hashLog = LZ4E_getHashLog(tableType);
 
 #if LZ4_LITTLE_ENDIAN
 	static const U64 prime5bytes = 889523592379ULL;
@@ -85,10 +91,10 @@ static FORCE_INLINE U32 LZ4E_hashPosition(
 {
 #if LZ4_ARCH64
 	if (tableType == byU32)
-		return LZ4_hash5(LZ4E_read64(bvecs, pos), tableType);
+		return LZ4E_hash5(LZ4E_read64(bvecs, pos), tableType);
 #endif
 
-	return LZ4_hash4(LZ4E_read32(bvecs, pos), tableType);
+	return LZ4E_hash4(LZ4E_read32(bvecs, pos), tableType);
 }
 
 static void LZ4E_putPositionOnHash(
@@ -98,9 +104,25 @@ static void LZ4E_putPositionOnHash(
 	const tableType_t tableType,
 	const struct bvec_iter baseIter)
 {
-	LZ4E_tbl_addr_t *hashTable = (LZ4E_tbl_addr_t *)tableBase;
-
-	hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(pos, baseIter);
+	switch (tableType) {
+	case byU64: {
+		LZ4E_tbl_addr64_t *hashTable = (LZ4E_tbl_addr64_t *)tableBase;
+		hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(
+				LZ4E_tbl_addr64_t, pos, baseIter);
+		return;
+	}
+	case byU32: {
+		LZ4E_tbl_addr32_t *hashTable = (LZ4E_tbl_addr32_t *)tableBase;
+		hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(
+				LZ4E_tbl_addr32_t, pos, baseIter);
+		return;
+	}
+	case byU16: {
+		LZ4E_tbl_addr16_t *hashTable = (LZ4E_tbl_addr16_t *)tableBase;
+		hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(
+				LZ4E_tbl_addr16_t, pos, baseIter);
+		return;
+	}}
 }
 
 static FORCE_INLINE void LZ4E_putPosition(
@@ -122,14 +144,29 @@ static struct bvec_iter LZ4E_getPositionOnHash(
 	const tableType_t tableType,
 	const struct bvec_iter baseIter)
 {
-	const LZ4E_tbl_addr_t *hashTable = (const LZ4E_tbl_addr_t *)tableBase;
 	const U32 *bvIterSize = (const U32 *)biSizeBase;
-	const LZ4E_tbl_addr_t addr = hashTable[h];
 
-	if (addr.raw == 0)
-		return baseIter;
-
-	return LZ4E_TBL_ADDR_TO_ITER(addr, baseIter, bvIterSize);
+	if (tableType == byU64) {
+		const LZ4E_tbl_addr64_t *hashTable = (const LZ4E_tbl_addr64_t *)tableBase;
+		const LZ4E_tbl_addr64_t addr = hashTable[h];
+		return ((addr.raw != 0)
+				? LZ4E_TBL_ADDR_TO_ITER(addr, baseIter, bvIterSize)
+				: baseIter);
+	}
+	if (tableType == byU32) {
+		const LZ4E_tbl_addr32_t *hashTable = (const LZ4E_tbl_addr32_t *)tableBase;
+		const LZ4E_tbl_addr32_t addr = hashTable[h];
+		return ((addr.raw != 0)
+				? LZ4E_TBL_ADDR_TO_ITER(addr, baseIter, bvIterSize)
+				: baseIter);
+	}
+	{
+		const LZ4E_tbl_addr16_t *hashTable = (const LZ4E_tbl_addr16_t *)tableBase;
+		const LZ4E_tbl_addr16_t addr = hashTable[h];
+		return ((addr.raw != 0)
+				? LZ4E_TBL_ADDR_TO_ITER(addr, baseIter, bvIterSize)
+				: baseIter);
+	}
 }
 
 static FORCE_INLINE struct bvec_iter LZ4E_getPosition(
@@ -149,17 +186,25 @@ static FORCE_INLINE struct bvec_iter LZ4E_getPosition(
 static bool LZ4E_fillBvIterSize(
 	U32 *bvIterSize,
 	const struct bio_vec *bvecs,
-	const struct bvec_iter start)
+	const struct bvec_iter start,
+	tableType_t * const tableType)
 {
 	struct bvec_iter iter;
 	struct bio_vec curBvec;
 	unsigned int i;
 
-	for_each_mp_bvec(curBvec, bvecs, iter, start) {
+	LZ4E_for_each_bvec(curBvec, bvecs, iter, start) {
 		i = iter.bi_idx - start.bi_idx;
 
 		if (i >= BIO_MAX_VECS)
 			return false;
+
+		if (i >= LZ4E_TBL_ADDR16_IDX_LIMIT
+				|| curBvec.bv_len > LZ4E_TBL_ADDR16_OFF_LIMIT)
+			*tableType |= byU32;
+
+		if (curBvec.bv_len > LZ4E_TBL_ADDR32_OFF_LIMIT)
+			*tableType |= byU64;
 
 		bvIterSize[i] = iter.bi_size + iter.bi_bvec_done;
 	}
@@ -179,7 +224,6 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	struct bvec_iter * const srcIter,
 	struct bvec_iter * const dstIter,
 	const limitedOutput_directive outputLimited,
-	const tableType_t tableType,
 	const dict_directive dict,			// NOTE:(kogora): always noDict
 	const dictIssue_directive dictIssue,		// NOTE:(kogora): always noDictIssue
 	const U32 acceleration)
@@ -196,6 +240,8 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	U32 dstPos = 0;
 	U32 anchorPos = 0;
 	U32 forwardH;
+
+	tableType_t tableType = byU16;
 
 	/* Init conditions */
 	if (inputSize > LZ4_MAX_INPUT_SIZE) {
@@ -221,19 +267,13 @@ static FORCE_INLINE int LZ4E_compress_generic(
 //		break;
 //	}
 
-	if ((tableType == byU16)
-		&& (inputSize >= LZ4_64Klimit)) {
-		/* Size too large (not within 64K limit) */
-		return 0;
-	}
-
 	if (inputSize < LZ4_minLength) {
 		/* Input too small, no compression (all literals) */
 		goto _last_literals;
 	}
 
 	/* Fill number of bytes remaining for each bvec */
-	if (!LZ4E_fillBvIterSize(dictPtr->bvIterSize, src, srcStart)) {
+	if (!LZ4E_fillBvIterSize(dictPtr->bvIterSize, src, srcStart, &tableType)) {
 		/* Too many bvecs */
 		return 0;
 	}
@@ -506,7 +546,6 @@ static int LZ4E_compress_fast_extState(
 	LZ4E_stream_t_internal *ctx = &((LZ4E_stream_t *)state)->internal_donotuse;
 	const unsigned int inputSize = srcIter->bi_size;
 	const unsigned int maxOutputSize = dstIter->bi_size;
-	const tableType_t tableType = byU32;
 
 	memset(state, 0, sizeof(LZ4E_stream_t));
 
@@ -515,13 +554,11 @@ static int LZ4E_compress_fast_extState(
 
 	if (maxOutputSize >= LZ4_COMPRESSBOUND(inputSize)) {
 		return LZ4E_compress_generic(ctx, src, dst, srcIter, dstIter,
-			noLimit, tableType, noDict,
-			noDictIssue, (U32)acceleration);
+			noLimit, noDict, noDictIssue, (U32)acceleration);
 	} else {
 		return LZ4E_compress_generic(ctx,
 			src, dst, srcIter, dstIter,
-			limitedOutput, tableType, noDict,
-			noDictIssue, (U32)acceleration);
+			limitedOutput, noDict, noDictIssue, (U32)acceleration);
 	}
 }
 
