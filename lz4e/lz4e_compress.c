@@ -95,22 +95,24 @@ static void LZ4E_putPositionOnHash(
 	const struct bvec_iter pos,
 	const U32 h,
 	void *tableBase,
-	const tableType_t tableType)
+	const tableType_t tableType,
+	const struct bvec_iter baseIter)
 {
 	LZ4E_tbl_addr_t *hashTable = (LZ4E_tbl_addr_t *)tableBase;
 
-	hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(pos);
+	hashTable[h] = LZ4E_TBL_ADDR_FROM_ITER(pos, baseIter);
 }
 
 static FORCE_INLINE void LZ4E_putPosition(
 	const struct bio_vec *bvecs,
 	const struct bvec_iter pos,
 	void *tableBase,
-	const tableType_t tableType)
+	const tableType_t tableType,
+	const struct bvec_iter baseIter)
 {
 	U32 const h = LZ4E_hashPosition(bvecs, pos, tableType);
 
-	LZ4E_putPositionOnHash(pos, h, tableBase, tableType);
+	LZ4E_putPositionOnHash(pos, h, tableBase, tableType, baseIter);
 }
 
 static struct bvec_iter LZ4E_getPositionOnHash(
@@ -127,7 +129,7 @@ static struct bvec_iter LZ4E_getPositionOnHash(
 	if (addr.raw == 0)
 		return baseIter;
 
-	return LZ4E_TBL_ADDR_TO_ITER(addr, bvIterSize);
+	return LZ4E_TBL_ADDR_TO_ITER(addr, baseIter, bvIterSize);
 }
 
 static FORCE_INLINE struct bvec_iter LZ4E_getPosition(
@@ -151,12 +153,15 @@ static bool LZ4E_fillBvIterSize(
 {
 	struct bvec_iter iter;
 	struct bio_vec curBvec;
+	unsigned int i;
 
 	for_each_mp_bvec(curBvec, bvecs, iter, start) {
-		if (iter.bi_idx >= BIO_MAX_VECS)
+		i = iter.bi_idx - start.bi_idx;
+
+		if (i >= BIO_MAX_VECS)
 			return false;
 
-		bvIterSize[iter.bi_idx] = iter.bi_size + iter.bi_bvec_done;
+		bvIterSize[i] = iter.bi_size + iter.bi_bvec_done;
 	}
 
 	return true;
@@ -234,7 +239,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	}
 
 	/* First Byte */
-	LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType);
+	LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType, srcStart);
 	LZ4E_advance1(src, srcIter, &srcPos);
 	forwardH = LZ4E_hashPosition(src, *srcIter, tableType);
 
@@ -284,7 +289,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 					forwardIter, tableType);
 
 				LZ4E_putPositionOnHash(*srcIter, h,
-					dictPtr->hashTable, tableType);
+					dictPtr->hashTable, tableType, srcStart);
 			} while (((tableType == byU16)
 					? 0
 					: (matchPos + MAX_DISTANCE < srcPos))
@@ -417,7 +422,7 @@ _next_match:
 		/* Fill table */
 		LZ4E_rollback1(src, srcIter, &srcPos);
 		LZ4E_rollback1(src, srcIter, &srcPos);
-		LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType);
+		LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType, srcStart);
 		LZ4E_advance(src, srcIter, &srcPos, 2);
 
 		/* Test next position */
@@ -438,7 +443,7 @@ _next_match:
 //			}
 //		}
 
-		LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType);
+		LZ4E_putPosition(src, *srcIter, dictPtr->hashTable, tableType, srcStart);
 
 		if ((matchPos + MAX_DISTANCE >= srcPos)
 			&& (LZ4E_read32(src, *srcIter)

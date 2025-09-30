@@ -638,17 +638,17 @@ typedef union {
     U32 raw;
 } __packed LZ4E_tbl_addr_t;
 
-#define LZ4E_TBL_ADDR_FROM_ITER(iter) \
+#define LZ4E_TBL_ADDR_FROM_ITER(iter, baseIter) \
 	((LZ4E_tbl_addr_t) { \
 		.addr = { \
-			.bvec_idx = (BYTE)((iter).bi_idx), \
+			.bvec_idx = (BYTE)(((iter).bi_idx) - ((baseIter).bi_idx)), \
 			.bvec_off = (U32)((iter).bi_bvec_done) \
 		} \
 	})
 
-#define LZ4E_TBL_ADDR_TO_ITER(addr, bvIterSize) \
+#define LZ4E_TBL_ADDR_TO_ITER(addr, baseIter, bvIterSize) \
 	((struct bvec_iter) { \
-		.bi_idx = ((addr).addr.bvec_idx), \
+		.bi_idx = (((addr).addr.bvec_idx) + ((baseIter).bi_idx)), \
 		.bi_size = (((bvIterSize)[(addr).addr.bvec_idx]) - ((addr).addr.bvec_off)), \
 		.bi_bvec_done = ((addr).addr.bvec_off) \
 	 })
