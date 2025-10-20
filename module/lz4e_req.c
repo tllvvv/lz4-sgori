@@ -60,12 +60,68 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 	struct bio_set *bset = lzdev->under_dev->bset;
 	struct lz4e_stats *stats_to_update = lzdev->read_stats;
 	struct bio *new_bio;
+	struct page **pages;
+	unsigned int nr_pages;
+	struct bio_iter iter;
+	struct bio_vec bvec;
+	int i, ret = 0;
 
-	new_bio = bio_alloc(bdev, original_bio->bi_vcnt, REQ_OP_READ, GFP_NOIO);
-	if (!new_bio) {
-		LZ4E_PR_ERR("failed to alloc new bio");
+	nr_pages = bio_pages(original_bio);
+
+	pages = kmalloc_array(nr_pages, sizeof(*pages), GFP_NOIO);
+	if (!pages) {
+		LZ4E_PR_ERR("failed to alloc pages array");
 		return BLK_STS_RESOURCE;
 	}
+
+	for (int i = 0; i < nr_pages; i++) {
+		pages[i] = alloc_page(GFP_NOIO);
+		if (!pages[i]) {
+			LZ4E_PR_ERR("failed to alloc page %d", i);
+			for (int j = 0; j < i; j++) {
+				__free_page(pages[j]);
+			}
+			kfree(pages);
+			return BLK_STS_RESOURCE;
+		}
+	}
+
+	bio_iter_init(&iter, original_bio);
+
+	bio_for_each_segment (bvec, original_bio, &iter) {
+		if (!bvec.bv_page || bvec.bv_len <= 0) {
+			ret = -EINVAL;
+			break;
+		}
+
+		memcpy(page_address(pages[iter.bi_idx]),
+		       page_address(bvec.bv_page) + bvec.bv_offset,
+		       bvec.bv_len);
+	}
+
+	if (ret) {
+		LZ4E_PR_ERR("failed to copy data to pages");
+
+		for (i = 0; i < nr_pages; i++) {
+			__free_page(pages[i]);
+		}
+		kfree(pages);
+		return BLK_STS_RESOURCE;
+	}
+
+	new_bio = bio_alloc(bdev, original_bio->bi_vcnt, REQ_OP_READ, GFP_NOIO);
+
+	if (!new_bio) {
+		LZ4E_PR_ERR("failed to alloc new bio");
+
+		for (int i = 0; i < nr_pages; i++) {
+			__free_page(pages[i]);
+		}
+		kfree(pages);
+		return BLK_STS_RESOURCE;
+	}
+
+	bio_add_pages(new_bio, pages, nr_pages);
 
 	lzreq->original_bio = original_bio;
 	lzreq->new_bio = new_bio;

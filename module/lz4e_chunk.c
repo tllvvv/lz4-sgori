@@ -47,9 +47,7 @@ void lz4e_buf_copy_to_bio(struct bio *original_bio, struct lz4e_buffer *dst)
 			copy_len = dst->data_size - offset;
 		}
 
-		void *dst_ptr = page_address(bvec->bv_page) + bvec->bv_offset;
-
-		memcpy(dst_ptr, &dst->data[offset], copy_len);
+		memcpy_to_bvec(bvec, &dst->data[offset], copy_len);
 
 		offset += copy_len;
 		iter++;
