@@ -1,6 +1,6 @@
 # Compression
 
-This page describes the process of forming an [LZ4 block](doc/BlockFormat.md).
+This page describes the process of forming an [LZ4 block](BlockFormat.md).
 
 ## Standard LZ4
 
@@ -48,7 +48,7 @@ In the default compression function, initial step size during match searching is
 
 While the essence of the algorithm stays the same, our modification replaces all uses of pointer arithmetic
 with [advancements](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L143) of iterators
-(see `struct bvec_iter` in [API](doc/API.md)). For calculating the length of literal sequence or a match,
+(see `struct bvec_iter` in [API](API.md)). For calculating the length of literal sequence or a match,
 we keep track of relative iterator position, which can also be obtained by `bi_size` manipulation.
 For instance, here are the helper functions for rolling an iterator back:
 ```c
