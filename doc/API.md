@@ -1,6 +1,8 @@
 # API
 
-### Standard LZ4
+This page describes the interface of extended LZ4 implementation for the Linux Kernel and differentiates it from the standard one.
+
+## Standard LZ4
 
 The standard implementation of LZ4 in the Linux Kernel only handles contiguous buffers, which has several downsides:
 - if data is fragmented, it has to be copied into an allocated buffer;
@@ -28,7 +30,7 @@ Compression requires roughly 16 KB of additional memory (`wrkmem`), as provided 
 Size limit for compressed data can be found from the input size using macro
 [`LZ4_COMPRESSBOUND`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/lz4.h#L61).
 
-### Extended LZ4
+## Extended LZ4
 
 This repo provides implementation of LZ4 compression for the Linux Kernel, extended for managing scatter-gather buffers.
 This means that instead of only handling contiguous buffers, this implementation rather works with sequences of
@@ -36,13 +38,15 @@ contiguous segments that can be arbitrarily located. In the Linux Kernel, a sing
 [`struct bio_vec`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L19):
 ```c
 struct bio_vec {
-	struct page  *bv_page;	 /* pointer to a physical page on which this buffer resides */
+	struct page  *bv_page;	 /* the first of physical pages on which this buffer resides */
 	unsigned int  bv_len;	 /* length (in bytes) of this buffer */
 	unsigned int  bv_offset; /* offset (in bytes) of this buffer within the page */
 };
 ```
 
 So, a scatter-gather buffer can be represented as an array of such structures.
+A single `bio_vec` may not necesserily lie on a single page, but rather on several
+pages that are contiguous: in that case it is called a [multi-page bvec](https://lwn.net/Articles/755629/).
 `struct bio_vec` is not particularly useful on its own and is rather a part of a bigger structure called
 [`bio`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/blk_types.h#L214).
 In the Linux Kernel it is used to represent I/O within the block layer:
@@ -84,7 +88,7 @@ int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
 		struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem);
 ```
 
-Input and max output sizes here are discovered through `srcIter` and `dstIter` respectively.
+Input and maximum output sizes here are discovered through `srcIter` and `dstIter` respectively.
 For I/O, iterators can be created and modified before calling the function and are changed at
 runtime to contain current position after the function is called.
 Compression requires additional 1KB of working memory on top of existing 16KB, the exact size is in macro `LZ4E_MEM_COMPRESS`.
