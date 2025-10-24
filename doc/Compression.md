@@ -81,9 +81,9 @@ static FORCE_INLINE void LZ4E_rollback1(const struct bio_vec *bvecs,
 ```
 
 Then, all memory reading and writing was rewritten for handling scatted-gather buffers using Linux Kernel's
-[page `memcpy`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/highmem.h#L444)
-and [in-flight `bio_vec` building](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L136) helpers.
-Each of implemented helper functions accept a buffer as array of `bio_vec`'s and the start iterator. For example,
+[page memcpy](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/highmem.h#L444)
+and [in-flight bvec building](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L136) helpers.
+Each of implemented helper functions accept a buffer as array of bvecs and the start iterator. For example,
 here are the helpers for writing to scatter-gather buffer from a contiguous one:
 ```c
 static FORCE_INLINE void LZ4E_memcpy_to_bvec(struct bio_vec *to,
@@ -116,12 +116,12 @@ static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
 Hash table also had to be adjusted as we want to obtain iterators for match positions.
 For that, a separate address types were added, as well as macros for transforming these addresses into iterators and the other way around.
 Such addresses consist of:
-- index inside the list of `bio_vec`'s, relatively to the start iterator;
-- offset inside the according `bio_vec`.
+- index inside the list of bvecs, relatively to the start iterator;
+- offset inside the according bvec.
 
 However, this would not be enough for calculating `bi_size` when creating an iterator.
-For that reason, we store remaining size of the source buffer at the start of each `bio_vec` in a separate array.
-The number of `bio_vec`'s that can be handled by compression is limited to 256, which is the
+For that reason, we store remaining size of the source buffer at the start of each bvec in a separate array.
+The number of bvecs that can be handled by compression is limited to 256, which is the
 [maximum number of vectors](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bio.h#L13) in a single block layer I/O.
 So, this array makes up for additional 1KB (4 * 256) of working memory.
 The `bi_size` table gets filled by iterating over vectors before start of the main loop.
@@ -131,5 +131,5 @@ As well as the original, our modification supports different hash table address 
 2) by 4 bytes, maximum of 256 vectors by 16MB;
 3) by 8 bytes, maximum of 256 vectors by 4GB, which is more then the size limit for compression.
 
-The used address type is decided at runtime, depending on the input size and layout, by iterating over `bio_vec`'s while filling the
+The used address type is decided at runtime, depending on the input size and layout, by iterating over bvecs while filling the
 `bi_size` table.
