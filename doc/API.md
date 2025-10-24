@@ -23,6 +23,11 @@ int LZ4_compress_default(const char *src, char *dst, int inputSize,
 		int maxOutputSize, void *wrkmem);
 ```
 
+Compression requires roughly 16 KB of additional memory (`wrkmem`), as provided by macro
+[`LZ4_MEM_COMPRESS`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/lz4.h#L156).
+Size limit for compressed data can be found from the input size using macro
+[`LZ4_COMPRESSBOUND`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/lz4.h#L61).
+
 ### Extended LZ4
 
 This repo provides implementation of LZ4 compression for the Linux Kernel, extended for managing scatter-gather buffers.
@@ -80,4 +85,6 @@ int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
 ```
 
 Input and max output sizes here are discovered through `srcIter` and `dstIter` respectively.
-For I/O, iterators can be created and modified before calling the function and are changed at runtime to contain current position after the function is called.
+For I/O, iterators can be created and modified before calling the function and are changed at
+runtime to contain current position after the function is called.
+Compression requires additional 1KB of working memory on top of existing 16KB, the exact size is in macro `LZ4E_MEM_COMPRESS`.
