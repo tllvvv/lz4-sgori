@@ -45,7 +45,7 @@ struct bio_vec {
 ```
 
 So, a scatter-gather buffer can be represented as an array of such structures.
-A single `bio_vec` may not necesserily lie on a single page, but rather on several
+A single `bio_vec` may not necessarily lie on a single page, but rather on several
 pages that are contiguous: in that case it is called a [multi-page bvec](https://lwn.net/Articles/755629/).
 `struct bio_vec` is not particularly useful on its own and is rather a part of a bigger structure called
 [`bio`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/blk_types.h#L214).
