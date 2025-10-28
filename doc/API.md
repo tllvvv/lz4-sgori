@@ -32,7 +32,7 @@ Size limit for compressed data can be found from the input size using macro
 
 ## Extended LZ4
 
-This repo provides implementation of LZ4 compression for the Linux Kernel, extended for managing scatter-gather buffers.
+This repo provides an implementation of LZ4 compression for the Linux Kernel, extended for managing scatter-gather buffers.
 This means that instead of only handling contiguous buffers, this implementation rather works with sequences of
 contiguous segments that can be arbitrarily located. In the Linux Kernel, a single segment as such is represented with
 [`struct bio_vec`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L19):

@@ -11,7 +11,7 @@ Essentially, a single LZ4 block consists of multiple sequences, which are compri
 ![block-format](https://github.com/ItIsMrLaG/storage-svg/blob/main/compression/lz4_bformat.svg)
 
 Semantically, in the process of decompression literals are supposed to be copied first using the known length,
-and the match position is found by subtracting offset from position after copying.
+and the match position is found by subtracting the offset from the current position after copying.
 After that, the match is copied using the encoded match length and the next sequence can be processed.
 Note that literal length can be zero, which means that sequence contains only a match.
 An LZ4 block is terminated using the following conditions:

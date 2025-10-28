@@ -11,8 +11,8 @@ is used for iteration and data access.
 
 ### The algorithm
 
-As a preparation, the first byte is processed by adding an acconding position to the hash table.
-After that, an anchor is set as a position of the first byte in source buffer that is not yet encoded.
+As a preparation, the first byte is processed by adding a corresponding position to the hash table.
+After that, an anchor is set as the position of the first byte in the source buffer that is not yet encoded.
 
 After that, the main loop can be split into the following steps:
 1) iterate through source buffer until found a match within a fixed-size window using a hash table;
@@ -36,7 +36,7 @@ hashed data as indices and stores positions relatively to the start of the sourc
 To find a match, several bytes are read from buffer and then hashed to get a supposed match position from the hash table.
 4 bytes are hashed on 32-bit architectures, while 8 bytes can be used within 64-bit systems.
 
-Hash table stores addresses of different size depending on the size of input: 4 bytes by default and 2 bytes if data fits within
+Sizes of addresses stored in the hash table differ depending on the size of input: 4 bytes by default and 2 bytes if data fits within
 [64 KB limit](https://elixir.bootlin.com/linux/v6.16.9/source/lib/lz4/lz4_compress.c#L42).
 That way, hash table can store 8192 positions instead of 4096, which would reduce the number of collisions.
 
@@ -47,8 +47,8 @@ In the default compression function, initial step size during match searching is
 ## Extended LZ4
 
 While the essence of the algorithm stays the same, our modification replaces all uses of pointer arithmetic
-with [advancements](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L143) of iterators
-(see `struct bvec_iter` in [API](API.md)). For calculating the length of literal sequence or a match,
+with [advancing](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L143) of iterators
+(see `struct bvec_iter` in [API](API.md)). For calculating a length of literal sequence or a match,
 we keep track of relative iterator position, which can also be obtained by `bi_size` manipulation.
 For instance, here are the helper functions for rolling an iterator back:
 ```c
@@ -80,7 +80,7 @@ static FORCE_INLINE void LZ4E_rollback1(const struct bio_vec *bvecs,
 }
 ```
 
-Then, all memory reading and writing was rewritten for handling scatted-gather buffers using Linux Kernel's
+Then, all memory reading and writing was rewritten for handling scatter-gather buffers using Linux Kernel's
 [page memcpy](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/highmem.h#L444)
 and [in-flight bvec building](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L136) helpers.
 Each of implemented helper functions accept a buffer as array of bvecs and the start iterator. For example,
@@ -114,7 +114,7 @@ static FORCE_INLINE void LZ4E_memcpy_to_sg(struct bio_vec *to, const char *from,
 ```
 
 Hash table also had to be adjusted as we want to obtain iterators for match positions.
-For that, a separate address types were added, as well as macros for transforming these addresses into iterators and the other way around.
+For that, separate address types were added, as well as macros for transforming these addresses into iterators and the other way around.
 Such addresses consist of:
 - index inside the list of bvecs, relatively to the start iterator;
 - offset inside the according bvec.
@@ -129,7 +129,7 @@ The `bi_size` table gets filled by iterating over vectors before start of the ma
 As well as the original, our modification supports different hash table address sizes, of which there are 3 types:
 1) by 2 bytes, maximum of 16 vectors by 4KB, which is the standard page size;
 2) by 4 bytes, maximum of 256 vectors by 16MB;
-3) by 8 bytes, maximum of 256 vectors by 4GB, which is more then the size limit for compression.
+3) by 8 bytes, maximum of 256 vectors by 4GB, which is more than the size limit for compression.
 
 The used address type is decided at runtime, depending on the input size and layout, by iterating over bvecs while filling the
 `bi_size` table.
