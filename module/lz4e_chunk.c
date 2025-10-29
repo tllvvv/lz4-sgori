@@ -105,7 +105,7 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		goto free_chunk;
 	}
 
-	wrkmem = kzalloc(LZ4_MEM_COMPRESS, GFP_NOIO);
+	wrkmem = kzalloc(LZ4E_MEM_COMPRESS, GFP_NOIO);
 	chunk->wrkmem = wrkmem;
 	if (!wrkmem) {
 		LZ4E_PR_ERR("failed to allocate working memory");
@@ -127,9 +127,8 @@ int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 	void *wrkmem = chunk->wrkmem;
 	int ret;
 
-	ret = LZ4E_compress_default(src_buf.data, dst_buf.data,
-				    src_buf.data_size, dst_buf.buf_size,
-				    wrkmem);
+	ret = LZ4_compress_default(src_buf.data, dst_buf.data,
+				   src_buf.data_size, dst_buf.buf_size, wrkmem);
 	if (!ret) {
 		LZ4E_PR_ERR("failed to compress data");
 		return -EIO;
@@ -147,15 +146,38 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk)
 	struct lz4e_buffer dst_buf = chunk->dst_buf;
 	int ret;
 
-	ret = LZ4E_decompress_safe(dst_buf.data, src_buf.data,
-				   dst_buf.data_size, src_buf.buf_size);
+	ret = LZ4_decompress_safe(dst_buf.data, src_buf.data, dst_buf.data_size,
+				  src_buf.buf_size);
 	if (ret < 0) {
 		LZ4E_PR_ERR("failed to decompress data");
 		return -EIO;
 	}
 
-	BUG_ON(ret != src_buf.data_size);
+	BUG_ON(ret != src_buf.buf_size);
+	chunk->src_buf.data_size = ret;
 
 	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
+	return 0;
+}
+
+int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk)
+{
+	struct bio *src_bio = chunk->src_buf.bio;
+	struct bio *dst_bio = chunk->dst_buf.bio;
+	struct bvec_iter src_iter = src_bio->bi_iter;
+	struct bvec_iter dst_iter = dst_bio->bi_iter;
+	void *wrkmem = chunk->wrkmem;
+	int ret;
+
+	ret = LZ4E_compress_default(src_bio->bi_io_vec, dst_bio->bi_io_vec,
+				    &src_iter, &dst_iter, wrkmem);
+	if (!ret) {
+		LZ4E_PR_ERR("failed to compress data");
+		return -EIO;
+	}
+
+	chunk->dst_buf.data_size = ret;
+
+	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
 	return 0;
 }

@@ -51,5 +51,12 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
+# bear
 **/compile_commands.json
 **/.cache/
+
+# fio
+*.state
+
+# Temporary directory for tests
+test/tmp
