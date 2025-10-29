@@ -42,7 +42,7 @@ That way, hash table can store 8192 positions instead of 4096, which would reduc
 
 The sliding window has size of [64KB](https://elixir.bootlin.com/linux/v6.16.9/source/lib/lz4/lz4defs.h#L96),
 so that the offset can be encoded with 2 bytes.
-In the default compression function, initial step size during match searching is equal to 1 and gets incremented every 64 steps.
+In the default compression function, initial step size during match searching is equal to 1 byte and gets incremented every 64 steps.
 
 ## Extended LZ4
 
