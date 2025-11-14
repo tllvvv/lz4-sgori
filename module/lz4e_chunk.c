@@ -34,26 +34,20 @@ void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src)
 	LZ4E_PR_DEBUG("copied from bio to src buffer");
 }
 
-void lz4e_buf_copy_to_bio(struct bio *original_bio, struct lz4e_buffer *dst)
+void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
 {
-	size_t offset = 0;
-	int iter = 0;
+	char *ptr = src->data;
+	struct bio_vec bvec;
+	struct bvec_iter iter;
 
-	while (iter < original_bio->bi_vcnt && offset < dst->data_size) {
-		struct bio_vec *bvec = &original_bio->bi_io_vec[iter];
-		size_t copy_len = bvec->bv_len;
-
-		if (offset + copy_len > dst->data_size) {
-			copy_len = dst->data_size - offset;
-		}
-
-		memcpy_to_bvec(bvec, &dst->data[offset], copy_len);
-
-		offset += copy_len;
-		iter++;
+	bio_for_each_segment (bvec, dst, iter) {
+		memcpy_to_bvec(&bvec, ptr);
+		ptr += bvec.bv_len;
 	}
 
-	LZ4E_PR_DEBUG("copied from dst buffer to original_bio");
+	dst->bi_iter.bi_size = src->data_size;
+
+	LZ4E_PR_DEBUG("copied from src buffer to bio");
 }
 
 void lz4e_chunk_free(struct lz4e_chunk *chunk)
@@ -179,5 +173,26 @@ int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk)
 	chunk->dst_buf.data_size = ret;
 
 	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
+	return 0;
+}
+
+int lz4e_chunk_decompress_ext(struct lz4e_chunk *chunk)
+{
+	struct bio *src_bio = chunk->src_buf.bio;
+	struct bio *dst_bio = chunk->dst_buf.bio;
+	struct bvec_iter src_iter = src_bio->bi_iter;
+	struct bvec_iter dst_iter = dst_bio->bi_iter;
+	int ret;
+
+	ret = LZ4E_decompress_safe(dst_bio->bi_io_vec, src_bio->bi_io_vec,
+				   &dst_iter, &src_iter);
+	if (!ret) {
+		LZ4E_PR_ERR("failed to decompress data");
+		return -EIO;
+	}
+
+	chunk->src_buf.data_size = ret;
+
+	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
 	return 0;
 }
