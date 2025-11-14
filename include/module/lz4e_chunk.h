@@ -13,6 +13,9 @@
 
 #include "lz4e_static.h"
 
+#define LZ4E_REQ_READ 0
+#define LZ4E_REQ_WRITE 1
+
 // Struct representing a contiguous data in memory
 struct lz4e_buffer {
 	struct bio *bio;
@@ -35,7 +38,7 @@ void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src);
 void lz4e_buf_copy_to_bio(struct bio *original_bio, struct lz4e_buffer *dst);
 
 // Allocate chunk for compression
-struct lz4e_chunk *lz4e_chunk_alloc(int src_size);
+struct lz4e_chunk *lz4e_chunk_alloc(int src_size, int dst_size, int type);
 
 // Compress data from source buffer into destination buffer
 int lz4e_chunk_compress(struct lz4e_chunk *chunk);
@@ -45,6 +48,9 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk);
 
 // Compress data from src bio into dst bio using the extended algorithm
 int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk);
+
+// Decompress data from src bio into dst bio using the extended algorithm
+int lz4e_chunk_decompress_ext(struct lz4e_chunk *chunk);
 
 // Free chunk for compression
 void lz4e_chunk_free(struct lz4e_chunk *chunk);

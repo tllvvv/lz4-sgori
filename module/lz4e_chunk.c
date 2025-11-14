@@ -36,24 +36,26 @@ void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src)
 
 void lz4e_buf_copy_to_bio(struct bio *original_bio, struct lz4e_buffer *dst)
 {
-	size_t offset = 0;
-	int iter = 0;
+	size_t remaining = dst->data_size;
+	char *ptr = dst->data;
 
-	while (iter < original_bio->bi_vcnt && offset < dst->data_size) {
-		struct bio_vec *bvec = &original_bio->bi_io_vec[iter];
-		size_t copy_len = bvec->bv_len;
+	struct bio_vec bvec;
+	struct bvec_iter iter;
 
-		if (offset + copy_len > dst->data_size) {
-			copy_len = dst->data_size - offset;
-		}
+	bio_for_each_segment (bvec, original_bio, iter) {
+		unsigned int copy_len =
+			min((unsigned int)remaining, bvec.bv_len);
 
-		memcpy_to_bvec(bvec, &dst->data[offset], copy_len);
+		memcpy_to_bvec(&bvec, ptr);
 
-		offset += copy_len;
-		iter++;
+		ptr += copy_len;
+		remaining -= copy_len;
+
+		if (remaining == 0)
+			break;
 	}
 
-	LZ4E_PR_DEBUG("copied from dst buffer to original_bio");
+	dst->data_size -= (dst->data_size - remaining);
 }
 
 void lz4e_chunk_free(struct lz4e_chunk *chunk)
@@ -77,9 +79,8 @@ static inline void lz4e_buffer_init(struct lz4e_buffer *buf, char *data,
 	buf->buf_size = buf_size;
 }
 
-struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
+struct lz4e_chunk *lz4e_chunk_alloc(int src_size, int dst_size, int type)
 {
-	int dst_size = LZ4_COMPRESSBOUND(src_size);
 	char *src_data;
 	char *dst_data;
 	void *wrkmem;
@@ -105,11 +106,15 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		goto free_chunk;
 	}
 
-	wrkmem = kzalloc(LZ4E_MEM_COMPRESS, GFP_NOIO);
-	chunk->wrkmem = wrkmem;
-	if (!wrkmem) {
-		LZ4E_PR_ERR("failed to allocate working memory");
-		goto free_chunk;
+	if (type) {
+		wrkmem = kzalloc(LZ4E_MEM_COMPRESS, GFP_NOIO);
+		chunk->wrkmem = wrkmem;
+		if (!wrkmem) {
+			LZ4E_PR_ERR("failed to allocate working memory");
+			goto free_chunk;
+		}
+	} else {
+		chunk->wrkmem = NULL;
 	}
 
 	LZ4E_PR_DEBUG("allocated chunk");
@@ -177,6 +182,25 @@ int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk)
 	}
 
 	chunk->dst_buf.data_size = ret;
+
+	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
+	return 0;
+}
+
+int lz4e_chunk_decompress_ext(struct lz4e_chunk *chunk)
+{
+	struct lz4e_buffer src_buf = chunk->dst_buf;
+	struct lz4e_buffer dst_buf = chunk->src_buf;
+	int ret;
+
+	ret = LZ4E_decompress_safe(src_buf.data, dst_buf.data,
+				   src_buf.data_size, dst_buf.buf_size);
+	if (ret < 0) {
+		LZ4E_PR_ERR("failed to decompress data");
+		return -EIO;
+	}
+
+	chunk->src_buf.data_size = ret;
 
 	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
 	return 0;
