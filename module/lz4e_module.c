@@ -5,8 +5,6 @@
  * This file is released under the GPL.
  */
 
-#include <asm-generic/errno-base.h>
-#include <asm-generic/int-ll64.h>
 #include <linux/blkdev.h>
 #include <linux/init.h>
 #include <linux/module.h>

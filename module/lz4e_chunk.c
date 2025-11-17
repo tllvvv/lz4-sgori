@@ -5,8 +5,6 @@
  * This file is released under the GPL.
  */
 
-#include <asm-generic/bug.h>
-#include <asm-generic/errno-base.h>
 #include <linux/bio.h>
 #include <linux/blk_types.h>
 #include <linux/bvec.h>

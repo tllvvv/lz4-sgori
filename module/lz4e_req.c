@@ -5,8 +5,6 @@
  * This file is released under the GPL.
  */
 
-#include <asm-generic/errno-base.h>
-#include <asm/page.h>
 #include <linux/bio.h>
 #include <linux/blk_types.h>
 #include <linux/blkdev.h>
@@ -17,7 +15,6 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/stddef.h>
-#include <vdso/page.h>
 
 #include "include/module/lz4e_req.h"
 
