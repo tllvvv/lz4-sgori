@@ -9,7 +9,6 @@
 #include <linux/blk_types.h>
 #include <linux/blkdev.h>
 #include <linux/gfp_types.h>
-#include <linux/lz4.h>
 #include <linux/math.h>
 #include <linux/minmax.h>
 #include <linux/mm.h>
@@ -18,6 +17,7 @@
 
 #include "include/module/lz4e_req.h"
 
+#include "include/lz4e/lz4e.h"
 #include "include/module/lz4e_chunk.h"
 #include "include/module/lz4e_dev.h"
 #include "include/module/lz4e_static.h"
@@ -84,7 +84,7 @@ static inline unsigned short lz4e_bio_bytes_to_pages(size_t bytes)
 static struct bio *lz4e_alloc_new_bio(struct bio *original_bio,
 				      struct lz4e_under_dev *under_dev)
 {
-	size_t bsize = LZ4_COMPRESSBOUND(original_bio->bi_iter.bi_size);
+	size_t bsize = LZ4E_COMPRESSBOUND(original_bio->bi_iter.bi_size);
 	struct block_device *bdev = under_dev->bdev;
 	struct bio_set *bset = under_dev->bset;
 	struct bio *new_bio;

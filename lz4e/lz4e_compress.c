@@ -41,8 +41,6 @@
 #include "include/lz4e/lz4e.h"
 #include "include/lz4e/lz4e_defs.h"
 
-static const int LZ4_minLength = (MFLIMIT + 1);
-
 /*-******************************
  *	Compression functions
  ********************************/
@@ -55,7 +53,6 @@ static FORCE_INLINE U32 LZ4E_getHashLog(tableType_t tableType)
 		return LZ4E_HASHLOG;
 
 	return LZ4E_HASHLOG + 1;
-
 }
 
 static FORCE_INLINE U32 LZ4E_hash4(
@@ -244,7 +241,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 	tableType_t tableType = byU16;
 
 	/* Init conditions */
-	if (inputSize > LZ4_MAX_INPUT_SIZE) {
+	if (inputSize > LZ4E_MAX_INPUT_SIZE) {
 		/* Unsupported inputSize, too large (or negative) */
 		return 0;
 	}
@@ -267,7 +264,7 @@ static FORCE_INLINE int LZ4E_compress_generic(
 //		break;
 //	}
 
-	if (inputSize < LZ4_minLength) {
+	if (inputSize < LZ4E_MIN_LENGTH) {
 		/* Input too small, no compression (all literals) */
 		goto _last_literals;
 	}
@@ -550,9 +547,9 @@ static int LZ4E_compress_fast_extState(
 	memset(state, 0, sizeof(LZ4E_stream_t));
 
 	if (acceleration < 1)
-		acceleration = LZ4_ACCELERATION_DEFAULT;
+		acceleration = LZ4E_ACCELERATION_DEFAULT;
 
-	if (maxOutputSize >= LZ4_COMPRESSBOUND(inputSize)) {
+	if (maxOutputSize >= LZ4E_COMPRESSBOUND(inputSize)) {
 		return LZ4E_compress_generic(ctx, src, dst, srcIter, dstIter,
 			noLimit, noDict, noDictIssue, (U32)acceleration);
 	} else {
@@ -566,5 +563,5 @@ int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
 	struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem)
 {
 	return LZ4E_compress_fast_extState(wrkmem, src, dst, srcIter,
-		dstIter, LZ4_ACCELERATION_DEFAULT);
+		dstIter, LZ4E_ACCELERATION_DEFAULT);
 }

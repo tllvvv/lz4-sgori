@@ -45,7 +45,8 @@
 #include <linux/minmax.h>
 #include <linux/string.h>	 /* memset, memcpy */
 #include <linux/unaligned.h>
-#include <linux/lz4.h>
+
+#include "lz4e.h"
 
 #define FORCE_INLINE __always_inline
 
@@ -84,6 +85,7 @@ typedef uintptr_t uptrval;
 #define WILDCOPYLENGTH 8
 #define LASTLITERALS 5
 #define MFLIMIT (WILDCOPYLENGTH + MINMATCH)
+#define LZ4E_MIN_LENGTH (MFLIMIT + 1)
 /*
  * ensure it's possible to write 2 x wildcopyLength
  * without overflowing output buffer
@@ -99,7 +101,7 @@ typedef uintptr_t uptrval;
 #define MB (1 << 20)
 #define GB (1U << 30)
 
-#define MAX_DISTANCE LZ4_DISTANCE_MAX
+#define MAX_DISTANCE LZ4E_DISTANCE_MAX
 #define STEPSIZE sizeof(size_t)
 
 #define ML_BITS	4

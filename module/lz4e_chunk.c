@@ -55,7 +55,7 @@ static inline void lz4e_buffer_init(struct lz4e_buffer *buf, char *data,
 
 struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 {
-	int dst_size = LZ4_COMPRESSBOUND(src_size);
+	int dst_size = LZ4E_COMPRESSBOUND(src_size);
 	char *src_data;
 	char *dst_data;
 	void *wrkmem;

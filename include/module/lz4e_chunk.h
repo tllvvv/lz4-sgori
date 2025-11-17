@@ -9,7 +9,6 @@
 #define LZ4E_CHUNK_H
 
 #include <linux/blk_types.h>
-#include <linux/lz4.h>
 
 #include "lz4e_static.h"
 
