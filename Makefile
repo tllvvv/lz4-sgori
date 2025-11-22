@@ -80,6 +80,33 @@ lib_remove:
 lib_reinsert:
 	$(MAKE) lib_remove && $(MAKE) lib_insert
 
+# ---------------- Block dev only ----------------
+
+.PHONY: bdev
+bdev:
+	$(MAKE) -j -C $(KERNEL_SOURCES_DIR) M=$(BDEV) MO=$(OUTPUT_BDEV) modules
+
+.PHONY: bdev_install
+bdev_install:
+	$(MAKE) -j -C $(KERNEL_SOURCES_DIR) M=$(BDEV) MO=$(OUTPUT_BDEV) modules_install
+
+.PHONY: bdev_clean
+bdev_clean:
+	$(MAKE) -j -C $(KERNEL_SOURCES_DIR) M=$(BDEV) MO=$(OUTPUT_BDEV) clean
+	rm -rf $(OUTPUT_BDEV)
+
+.PHONY: bdev_insert
+bdev_insert:
+	insmod $(BDEV_OBJ)
+
+.PHONY: bdev_remove
+bdev_remove:
+	rmmod $(BDEV_NAME) || true
+
+.PHONY: bdev_reinsert
+bdev_reinsert:
+	$(MAKE) bdev_remove && $(MAKE) bdev_insert
+
 # ---------------- Testing ----------------
 
 .PHONY: test

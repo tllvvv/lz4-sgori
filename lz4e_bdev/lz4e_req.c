@@ -17,7 +17,7 @@
 
 #include "include/lz4e_req.h"
 
-#include "../lz4e/include/lz4e.h"
+#include "include/lz4e.h"
 #include "include/lz4e_chunk.h"
 #include "include/lz4e_dev.h"
 #include "include/lz4e_static.h"

@@ -13,7 +13,7 @@
 
 #include "include/lz4e_chunk.h"
 
-#include "../lz4e/include/lz4e.h"
+#include "include/lz4e.h"
 #include "include/lz4e_static.h"
 
 void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src)
