@@ -77,6 +77,10 @@ inserted into your kernel. After that, to be able to access exported symbols you
 
 See more details: <https://docs.kernel.org/kbuild/modules.html#symbols-from-another-external-module>.
 
+As examples for both cases, you can see how the block dev module is compiled when running `make` and `make bdev`:
+- [top-module Kbuild](../Kbuild);
+- [setting KBUILD_EXTRA_SYMBOLS](../lz4e_bdev/Makefile).
+
 After the symbols can be accessed by your module, to use functions provided by the header [`lz4e.h`](../lz4e/include/lz4e.h) you can add it to your includes
 using gcc's `-I` flag, or by directly copying it into your sources.
 
@@ -86,15 +90,23 @@ After module `lz4e_bdev` is inserted into the kernel, its parameters can be acce
 ```bash
 /sys/module/lz4e_bdev/parameters
 ├── /sys/module/lz4e_bdev/parameters/mapper   # create a proxy block device over the given one
-├── /sys/module/lz4e_bdev/parameters/stats    # print I/O request statistics
-└── /sys/module/lz4e_bdev/parameters/unmapper # remove the proxy block device
+├── /sys/module/lz4e_bdev/parameters/unmapper # remove the proxy block device
+└── /sys/module/lz4e_bdev/parameters/stats    # access I/O request statistics
 ```
 
 For example, you can create a block device by running:
 ```bash
-echo -n "<path_to_underlying_device>" > /sys/module/lz4e/parameters/mapper
+echo -n "<path_to_underlying_device>" > /sys/module/lz4e_bdev/parameters/mapper
 ```
-And to remove the created device, run:
+To remove the created device, run:
 ```bash
-echo -n "unmap" > /sys/module/lz4e/parameters/unmapper
+echo -n "unmap" > /sys/module/lz4e_bdev/parameters/unmapper
+```
+To print I/O statistics of device, use:
+```bash
+cat /sys/module/lz4e_bdev/parameters/stats
+```
+And to reset the request statistics:
+```bash
+echo -n "reset" > /sys/module/lz4e_bdev/parameters/stats
 ```
