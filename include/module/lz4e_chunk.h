@@ -32,7 +32,7 @@ struct lz4e_chunk {
 void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src);
 
 // Copy data from the given buffer
-void lz4e_buf_copy_to_bio(struct bio *original_bio, struct lz4e_buffer *dst);
+void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src);
 
 // Allocate chunk for compression
 struct lz4e_chunk *lz4e_chunk_alloc(int src_size);

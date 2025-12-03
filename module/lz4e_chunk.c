@@ -119,6 +119,8 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		LZ4E_PR_ERR("failed to allocate src buffer");
 		goto free_chunk;
 	}
+	chunk->src_buf.buf_size = src_size;
+	chunk->src_buf.data_size = 0;
 
 	dst_data = kzalloc((size_t)dst_size, GFP_NOIO);
 	lz4e_buffer_init(&chunk->dst_buf, dst_data, dst_size);
@@ -126,6 +128,8 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		LZ4E_PR_ERR("failed to allocate dst buffer");
 		goto free_chunk;
 	}
+	chunk->dst_buf.buf_size = dst_size;
+	chunk->dst_buf.data_size = 0;
 
 	wrkmem = kzalloc(LZ4E_MEM_COMPRESS, GFP_NOIO);
 	chunk->wrkmem = wrkmem;
@@ -144,8 +148,8 @@ free_chunk:
 
 int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 {
-	struct lz4e_buffer src_buf = chunk->src_buf;
-	struct lz4e_buffer dst_buf = chunk->dst_buf;
+	struct lz4e_buffer src_buf = chunk->dst_buf;
+	struct lz4e_buffer dst_buf = chunk->src_buf;
 	void *wrkmem = chunk->wrkmem;
 	int ret;
 
@@ -174,8 +178,6 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk)
 		LZ4E_PR_ERR("failed to decompress data");
 		return -EIO;
 	}
-
-	BUG_ON(ret != src_buf.buf_size);
 	chunk->src_buf.data_size = ret;
 
 	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
