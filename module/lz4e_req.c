@@ -334,7 +334,6 @@ void lz4e_req_submit(struct lz4e_req *lzreq)
 		break;
 	default:
 		LZ4E_PR_ERR("unreachable type I/O");
-		BUG_ON(true);
 	}
 
 	new_bio->bi_private = lzreq;
