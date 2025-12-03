@@ -121,7 +121,8 @@ static int lz4e_add_buf_to_bio(struct bio *bio, struct lz4e_buffer *buf)
 }
 
 static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
-				       struct lz4e_dev *lzdev, struct bio *original_bio)
+				       struct lz4e_dev *lzdev,
+				       struct bio *original_bio)
 {
 	struct lz4e_stats *stats_to_update = lzdev->read_stats;
 	struct bio *new_bio;
