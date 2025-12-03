@@ -128,56 +128,22 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 	struct bio *new_bio;
 	struct lz4e_chunk *chunk;
 	blk_status_t status;
-	int ret, dst_size, src_size;
+
+	chunk = lz4e_chunk_alloc((int)original_bio->bi_iter.bi_size);
+	if (!chunk) {
+		LZ4E_PR_ERR("failed to allocate chunk");
+		status = BLK_STS_RESOURCE;
+	}
 
 	new_bio = lz4e_alloc_new_bio(original_bio, lzdev->under_dev);
 	if (!new_bio) {
 		LZ4E_PR_ERR("failed to allocate new bio");
-		return BLK_STS_RESOURCE;
-	}
-
-	src_size = (int)original_bio->bi_iter.bi_size;
-	dst_size = LZ4_COMPRESSBOUND(src_size);
-
-	chunk = lz4e_chunk_alloc(src_size, dst_size, LZ4E_REQ_READ);
-	if (!chunk) {
-		LZ4E_PR_ERR("failed to allocate chunk");
 		status = BLK_STS_RESOURCE;
-		goto put_new_bio;
+		goto free_chunk;
 	}
 
 	chunk->dst_buf.bio = new_bio;
 	chunk->src_buf.bio = original_bio;
-
-	ret = lz4e_add_buf_to_bio(new_bio, &chunk->dst_buf);
-	if (ret) {
-		LZ4E_PR_ERR("failed to add dst buffer to bio");
-		status = BLK_STS_IOERR;
-		goto free_chunk;
-	}
-
-	lz4e_reset_bio(new_bio, original_bio, lzdev->under_dev);
-
-	ret = lz4e_chunk_compress_ext(chunk);
-	if (ret) {
-		LZ4E_PR_ERR("failed to compress data");
-		status = BLK_STS_IOERR;
-		goto free_chunk;
-	}
-
-	ret = lz4e_chunk_decompress(chunk);
-	if (ret) {
-		LZ4E_PR_ERR("failed to decompress data");
-		status = BLK_STS_IOERR;
-		goto free_chunk;
-	}
-
-	ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
-	if (ret) {
-		LZ4E_PR_ERR("failed to add src buffer to bio");
-		status = BLK_STS_IOERR;
-		goto free_chunk;
-	}
 
 	lzreq->original_bio = original_bio;
 	lzreq->new_bio = new_bio;
@@ -187,8 +153,6 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 	LZ4E_PR_DEBUG("initialized read request");
 	return BLK_STS_OK;
 
-put_new_bio:
-	bio_put(new_bio);
 free_chunk:
 	lz4e_chunk_free(chunk);
 	return status;
@@ -202,12 +166,9 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 	struct lz4e_chunk *chunk;
 	struct bio *new_bio;
 	blk_status_t status;
-	int ret, dst_size, src_size;
+	int ret;
 
-	src_size = (int)original_bio->bi_iter.bi_size;
-	dst_size = LZ4_COMPRESSBOUND(src_size);
-
-	chunk = lz4e_chunk_alloc(src_size, dst_size, LZ4E_REQ_WRITE);
+	chunk = lz4e_chunk_alloc((int)original_bio->bi_iter.bi_size);
 	if (!chunk) {
 		LZ4E_PR_ERR("failed to allocate chunk");
 		return BLK_STS_RESOURCE;
@@ -287,17 +248,47 @@ blk_status_t lz4e_req_init(struct lz4e_req *lzreq, struct bio *original_bio,
 static void lz4e_end_io_read(struct bio *new_bio)
 {
 	struct lz4e_req *lzreq = new_bio->bi_private;
-	struct bio *original_bio = lzreq->original_bio;
-	struct lz4e_stats *stats_to_update = lzreq->stats_to_update;
+	struct bio *original_bio;
+	struct lz4e_chunk *chunk;
+	struct lz4e_stats *stats_to_update;
+	int ret;
+
+	if (!lzreq) {
+		LZ4E_PR_ERR("end_io_read: null lzreq");
+		bio_put(new_bio);
+		return;
+	}
+
+	chunk = lzreq->chunk;
+	original_bio = lzreq->original_bio;
+	stats_to_update = lzreq->stats_to_update;
 
 	lz4e_stats_update(stats_to_update, new_bio);
 
-	LZ4E_PR_INFO("completed bio request");
+	LZ4E_PR_INFO("completed read from underlying device");
 
-	bio_copy_data(original_bio, new_bio);
+	lz4e_buf_copy_from_bio(&chunk->src_buf, new_bio);
+
+	ret = lz4e_chunk_compress(chunk);
+	if (ret) {
+		LZ4E_PR_ERR("compression failed in end_io_read");
+		original_bio->bi_status = BLK_STS_IOERR;
+		goto out_complete;
+	}
+
+	ret = lz4e_chunk_decompress_ext(chunk);
+	if (ret) {
+		LZ4E_PR_ERR("decompression failed in end_io_read");
+		original_bio->bi_status = BLK_STS_IOERR;
+		goto out_complete;
+	}
+
+	lz4e_buf_copy_to_bio(original_bio, &chunk->src_buf);
+
 	original_bio->bi_status = new_bio->bi_status;
-	bio_endio(original_bio);
 
+out_complete:
+	bio_endio(original_bio);
 	bio_put(new_bio);
 	lz4e_req_free(lzreq);
 }
