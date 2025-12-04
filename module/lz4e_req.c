@@ -141,6 +141,11 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 		status = BLK_STS_RESOURCE;
 		goto free_chunk;
 	}
+	new_bio->bi_iter.bi_size = original_bio->bi_iter.bi_size;
+	int ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
+	if (ret) {
+		LZ4E_PR_ERR("failed to add buffer to new bio");
+	}
 
 	chunk->dst_buf.bio = original_bio;
 	chunk->src_buf.bio = new_bio;
@@ -267,9 +272,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 
 	LZ4E_PR_INFO("completed read from underlying device");
 
-	lz4e_buf_copy_from_bio(&chunk->dst_buf, new_bio);
-
-	ret = lz4e_chunk_compress(chunk);
+	ret = lz4e_chunk_compress_ext(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("compression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
