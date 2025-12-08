@@ -15,7 +15,7 @@ If you wish to build only the library you can run:
 ```bash
 make lib
 ```
-Building only the block device is also possible by running
+It is also possible to build the block device separately by running
 ```bash
 make bdev
 ```
@@ -79,7 +79,7 @@ See more details: <https://docs.kernel.org/kbuild/modules.html#symbols-from-anot
 
 As examples for both cases, you can see how the block dev module is compiled when running `make` and `make bdev`:
 - [top-module Kbuild](../Kbuild);
-- [setting KBUILD_EXTRA_SYMBOLS](../lz4e_bdev/Makefile).
+- [setting KBUILD_EXTRA_SYMBOLS](../lz4e_bdev/Kbuild).
 
 After the symbols can be accessed by your module, to use functions provided by the header [`lz4e.h`](../lz4e/include/lz4e.h) you can add it to your includes
 using gcc's `-I` flag, or by directly copying it into your sources.
