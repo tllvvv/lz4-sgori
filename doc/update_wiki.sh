@@ -18,6 +18,11 @@ cd $WIKI_DIR
 git add .
 git checkout
 
+if ! git diff --quiet; then
+	echo "No changes found, exiting..."
+	exit
+else
+
 echo "Enter commit message: "
 read -r commit_msg
 git commit -m $commit_msg
@@ -34,3 +39,5 @@ while true; do
 		break
 	fi
 done
+
+fi
