@@ -4,12 +4,19 @@ This page describes the interface of extended LZ4 implementation for the Linux K
 
 ## Standard LZ4
 
-The standard implementation of LZ4 in the Linux Kernel only handles contiguous buffers, which has several downsides:
-- if data is fragmented, it has to be copied into an allocated buffer;
-- if data is big enough, allocating a contiguous buffer for it can be difficult.
+The standard implementation of LZ4 in the Linux Kernel only handles contiguous buffers. For handling fragmented data there are several workarounds:
+1) Copying the data into a preallocated contiguous buffer.
 
-It becomes significant for I/O operations in particular, in which LZ4 is often used for its speed.
-Also, failing to allocate a big enough chunk of memory would require running compression or decompression by parts, which brings unnecessary complexity.
+    This would require allocating a big enough chunk of memory, which could cause issues for large data.
+    Although this method is easy to implement, allocation followed by copying would take an effect on performance and memory consumption.
+
+2) Running LZ4 for each of contiguous blocks.
+
+    When compressing a single block, we usually want to access as much of preceding data as possible to find matches.
+    In case of fragmented data we would use [LZ4 Streaming API](https://github.com/lz4/lz4/blob/dev/examples/streaming_api_basics.md).
+    The limitation here is that we are only able to use the previous block as a dictionary, and that can decrease the compression ratio.
+
+Described downsides become significant for I/O operations in particular, in which LZ4 is often used for its speed.
 
 Signature of the most commonly used [LZ4 function for compression](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/lz4.h#L175) is as follows:
 ```c
@@ -92,3 +99,5 @@ Input and maximum output sizes here are discovered through `srcIter` and `dstIte
 For I/O, iterators can be created and modified before calling the function and are changed at
 runtime to contain current position after the function is called.
 Compression requires additional 1KB of working memory on top of existing 16KB, the exact size is in macro `LZ4E_MEM_COMPRESS`.
+
+Described signatures and macros can be found at [lz4e.h](../lz4e/include/lz4e.h).
