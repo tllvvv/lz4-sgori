@@ -13,19 +13,20 @@ git clone $WIKI_REPO_URL
 
 trap cleanup EXIT
 
-cp -rf $DOCS_DIR/*.md $WIKI_DIR
+rsync --recursive --delete --no-links --exclude '.git' $DOCS_DIR/ $WIKI_DIR/
 cd $WIKI_DIR
-git add .
+ls -al
+git add --all
 git checkout
 
-if ! git diff --quiet; then
+if ! git diff --quiet || git diff --cached --quiet; then
 	echo "No changes found, exiting..."
 	exit
-else
+fi
 
 echo "Enter commit message: "
 read -r commit_msg
-git commit -m $commit_msg
+git commit -m "$commit_msg"
 
 while true; do
 	echo "Are you sure you want to push to remote repository? [y/n]"
@@ -39,5 +40,3 @@ while true; do
 		break
 	fi
 done
-
-fi
