@@ -72,7 +72,7 @@ if [ ! -d "$WIKI_DIR" ]; then
 	exit 2
 fi
 
-if [ "$(cd "$WIKI_DIR"; git remote get-url origin)" != "$WIKI_REPO_URL" ]; then
+if [ "$(cd "$WIKI_DIR"; git remote get-url origin | sed 's/\.git$\|$/.git/g')" != "$WIKI_REPO_URL" ]; then
 	echo "Invalid wiki repository: $WIKI_DIR"
 	exit 2
 fi
