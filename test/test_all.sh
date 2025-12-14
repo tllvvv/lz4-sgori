@@ -1,3 +1,5 @@
+#! /bin/bash
+
 set -euxo pipefail
 
 print_result() {
@@ -13,5 +15,5 @@ print_result() {
 
 trap print_result EXIT
 
-sh test/bash_tests/test_all.sh
-sh test/fio_tests/test_all.sh
+./test/bash_tests/test_all.sh
+./test/fio_tests/test_all.sh

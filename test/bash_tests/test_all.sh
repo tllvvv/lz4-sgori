@@ -1,6 +1,8 @@
+#! /bin/bash
+
 set -euxo pipefail
 
-sh test/bash_tests/test_init.sh
-sh test/bash_tests/test_info.sh
-sh test/bash_tests/test_proxy.sh
-sh test/bash_tests/test_stats.sh
+./test/bash_tests/test_init.sh
+./test/bash_tests/test_info.sh
+./test/bash_tests/test_proxy.sh
+./test/bash_tests/test_stats.sh

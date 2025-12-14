@@ -1,15 +1,17 @@
+#! /bin/bash
+
 source test/literals.sh
 
 set -euxo pipefail
 
 setup() {
 	make reinsert
-	modprobe brd rd_nr=1 rd_size=$DISK_SIZE_IN_KB max_part=0
+	modprobe brd rd_nr=1 rd_size="$DISK_SIZE_IN_KB" max_part=0
 }
 
 create_and_remove_disk() {
-	echo -n $UNDERLYING_DEVICE > $DEVICE_MAPPER
-	echo -n unmap > $DEVICE_UNMAPPER
+	echo -n "$UNDERLYING_DEVICE" > "$DEVICE_MAPPER"
+	echo -n unmap > "$DEVICE_UNMAPPER"
 }
 
 cleanup() {
