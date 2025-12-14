@@ -4,7 +4,7 @@ jobs:
   check-with-clang-format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install clang-format
         run: |
           sudo apt-get update
