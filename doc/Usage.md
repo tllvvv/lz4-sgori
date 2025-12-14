@@ -15,11 +15,11 @@ If you wish to build only the library you can run:
 ```bash
 make lib
 ```
-It is also possible to build the block device separately by running
+It is also possible to build the block device separately by running:
 ```bash
 make bdev
 ```
-, although it requires symbols obtained from compiling the library.
+Although, it requires symbols obtained from compiling the library.
 
 ## Installing
 
