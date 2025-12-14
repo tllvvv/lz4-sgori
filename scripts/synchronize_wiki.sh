@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "$BASE_COMMIT_SHA" ] && [ ! "$COMMIT_MESSAGE" ]; then
-	COMMIT_MESSAGE=$(echo -e "synchronize wiki after commits:\n$(git log "$BASE_COMMIT_SHA"..HEAD --pretty=format:'- %s')")
+	COMMIT_MESSAGE=$(echo -e "wiki sync\n\nSynchronize after commits:\n$(git log "$BASE_COMMIT_SHA"..HEAD --pretty=format:'- %s')")
 fi
 
 if [ "$CLONE_WIKI" -eq 1 ]; then
