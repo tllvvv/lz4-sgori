@@ -18,7 +18,7 @@ COMPRESS_OBJ := $(OUTPUT_LIB)/$(COMPRESS_NAME).ko
 DECOMPRESS_OBJ := $(OUTPUT_LIB)/$(DECOMPRESS_NAME).ko
 BDEV_OBJ := $(OUTPUT_BDEV)/$(BDEV_NAME).ko
 
-TEST_ALL := $(PWD)/test/test_all.sh
+TEST_ALL := ./test/test_all.sh
 
 # ---------------- All, lib and block dev----------------
 
@@ -111,4 +111,4 @@ bdev_reinsert:
 
 .PHONY: test
 test:
-	$(MAKE) && $(SHELL) $(TEST_ALL)
+	$(MAKE) && $(TEST_ALL)
