@@ -78,11 +78,12 @@ inserted into your kernel. After that, to be able to access exported symbols you
 See more details: <https://docs.kernel.org/kbuild/modules.html#symbols-from-another-external-module>.
 
 As examples for both cases, you can see how the block dev module is compiled when running `make` and `make bdev`:
-- [top-module Kbuild](../Kbuild);
-- [setting KBUILD_EXTRA_SYMBOLS](../lz4e_bdev/Kbuild).
+- [top-module Kbuild](https://github.com/ItIsMrLaG/lz4-sgori/blob/main/Kbuild);
+- [setting KBUILD_EXTRA_SYMBOLS](https://github.com/ItIsMrLaG/lz4-sgori/blob/main/lz4e_bdev/Kbuild).
 
-After the symbols can be accessed by your module, to use functions provided by the header [`lz4e.h`](../lz4e/include/lz4e.h) you can add it to your includes
-using gcc's `-I` flag, or by directly copying it into your sources.
+After the symbols can be accessed by your module, to use functions provided by the header
+[`lz4e.h`](https://github.com/ItIsMrLaG/lz4-sgori/blob/main/lz4e/include/lz4e.h)
+you can add it to your includes using gcc's `-I` flag, or by directly copying it into your sources.
 
 ## Using the block device
 

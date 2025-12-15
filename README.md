@@ -1,6 +1,6 @@
 # LZ4 Scatter-Gather (SG) Buffers Support in Linux Kernel block layer
 
-This project extends the LZ4 compression algorithm implementation in the Linux kernel to support SG-buffers (based on `struct bio_vec`), 
+This project extends the LZ4 compression algorithm implementation in the Linux kernel to support SG-buffers (based on `struct bio_vec`),
 eliminating the need for additional data copying.
 
 ## Key Features
@@ -8,7 +8,7 @@ eliminating the need for additional data copying.
 - Kernel-space implementation of LZ4 with SG buffers support
 - Block device module for tests and experiments
 - Test environment for validation
-- API extension in `lz4e/include/lz4e.h`
+- API extension in [`lz4e/include/lz4e.h`](https://github.com/ItIsMrLaG/lz4-sgori/blob/main/lz4e/include/lz4e.h)
 
 ## Extended API
 

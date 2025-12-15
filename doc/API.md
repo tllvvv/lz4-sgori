@@ -100,4 +100,4 @@ For I/O, iterators can be created and modified before calling the function and a
 runtime to contain current position after the function is called.
 Compression requires additional 1KB of working memory on top of existing 16KB, the exact size is in macro `LZ4E_MEM_COMPRESS`.
 
-Described signatures and macros can be found at [lz4e.h](../lz4e/include/lz4e.h).
+Described signatures and macros can be found at [lz4e.h](https://github.com/ItIsMrLaG/lz4-sgori/blob/main/lz4e/include/lz4e.h).
