@@ -45,8 +45,7 @@ void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src)
 
 	dst->data_size = (int)(src->bi_iter.bi_size - remaining);
 
-	LZ4E_PR_DEBUG("copied from bio to src buffer: %d bytes",
-		      dst->data_size);
+	LZ4E_PR_INFO("copied from bio to src buffer: %d bytes", dst->data_size);
 }
 
 void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
@@ -75,7 +74,7 @@ void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
 
 	src->data_size = (int)(src->data_size - remaining);
 
-	LZ4E_PR_DEBUG("copied from buffer to bio: %d bytes", src->data_size);
+	LZ4E_PR_INFO("copied from buffer to bio: %d bytes", src->data_size);
 }
 
 void lz4e_chunk_free(struct lz4e_chunk *chunk)
@@ -148,8 +147,8 @@ free_chunk:
 
 int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 {
-	struct lz4e_buffer src_buf = chunk->dst_buf;
-	struct lz4e_buffer dst_buf = chunk->src_buf;
+	struct lz4e_buffer src_buf = chunk->src_buf;
+	struct lz4e_buffer dst_buf = chunk->dst_buf;
 	void *wrkmem = chunk->wrkmem;
 	int ret;
 
