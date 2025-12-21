@@ -161,7 +161,7 @@ int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 
 	chunk->dst_buf.data_size = ret;
 
-	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
+	LZ4E_PR_DEBUG("compressed data into dst buffer: %d bytes", ret);
 	return 0;
 }
 
@@ -179,7 +179,7 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk)
 	}
 	chunk->src_buf.data_size = ret;
 
-	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
+	LZ4E_PR_DEBUG("decompressed data into src buffer: %d bytes", ret);
 	return 0;
 }
 
@@ -201,7 +201,7 @@ int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk)
 
 	chunk->dst_buf.data_size = ret;
 
-	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
+	LZ4E_PR_DEBUG("compressed data into dst buffer: %d bytes", ret);
 	return 0;
 }
 

@@ -272,18 +272,13 @@ static void lz4e_end_io_read(struct bio *new_bio)
 	lz4e_stats_update(stats_to_update, new_bio);
 
 	LZ4E_PR_INFO("completed read from underlying device");
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
-	ret = lz4e_chunk_compress_ext(chunk);
+
+	ret = lz4e_chunk_compress(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("compression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
 		goto out_complete;
 	}
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
 
 	ret = lz4e_chunk_decompress_ext(chunk);
 	if (ret) {
@@ -291,9 +286,6 @@ static void lz4e_end_io_read(struct bio *new_bio)
 		original_bio->bi_status = BLK_STS_IOERR;
 		goto out_complete;
 	}
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
 
 	lz4e_buf_copy_to_bio(original_bio, &chunk->src_buf);
 
