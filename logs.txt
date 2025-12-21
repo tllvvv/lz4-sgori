@@ -155,3 +155,264 @@ module verification failed: signature and/or required key missing - tainting ker
 [  917.844789] lz4e: copied from buffer to bio: 1024 bytes
 [  918.026696] lz4e: module unloaded successfully
 [  918.204589] brd: module unloaded
+
+
+ОШИБКА СЕГМЕНТИРОВАНИЯ
+
+[   55.743030] lz4e: module verification failed: signature and/or required key missing - tainting kernel
+[   55.743314] lz4e: module loaded successfully
+[   55.755680] brd: module loaded
+[   55.757412] lz4e: opened underlying device: /dev/ram0
+[   55.758590] lz4e: initialized generic disk: lz4e0
+[   55.758592] lz4e: device mapped successfully
+[   55.795447] lz4e: module unloaded successfully
+[   55.807322] brd: module unloaded
+[   88.636716] lz4e: module loaded successfully
+[   88.656588] brd: module loaded
+[   88.658759] lz4e: opened underlying device: /dev/ram0
+[   88.665142] lz4e: initialized generic disk: lz4e0
+[   88.665148] lz4e: device mapped successfully
+[   88.703561] lz4e: write req init
+[   88.703573] lz4e: Adr for write: 0
+[   88.703597] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.703600] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.703626] lz4e: compressed data into dst buffer: 819 bytes
+[   88.703627] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.703628] lz4e: submitted bio request
+[   88.703632] lz4e: completed bio request
+[   88.703639] lz4e: write req init
+[   88.703640] lz4e: Adr for write: 2
+[   88.703641] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.703642] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.703663] lz4e: compressed data into dst buffer: 838 bytes
+[   88.703664] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.703665] lz4e: submitted bio request
+[   88.703665] lz4e: completed bio request
+[   88.703667] lz4e: write req init
+[   88.703667] lz4e: Adr for write: 4
+[   88.703668] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.703669] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.703689] lz4e: compressed data into dst buffer: 809 bytes
+[   88.703690] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.703690] lz4e: submitted bio request
+[   88.703691] lz4e: completed bio request
+[   88.703692] lz4e: write req init
+[   88.703693] lz4e: Adr for write: 6
+[   88.703694] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.703694] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.703715] lz4e: compressed data into dst buffer: 829 bytes
+[   88.703716] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.703716] lz4e: submitted bio request
+[   88.703717] lz4e: completed bio request
+[   88.703747] lz4e: read req init
+[   88.703751] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.703752] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.703752] lz4e: str 140. src_data_size: 4096, dst_data_size: 0
+[   88.703753] lz4e: Adr for read: 8
+[   88.703753] lz4e: initialized read request
+[   88.703754] lz4e: submitted bio request
+[   88.703755] lz4e: completed read from underlying device
+[   88.703755] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.703756] lz4e: src_buf.data 0000000095e76a60, dst_buf.data 000000009db0e919, src_buf.data_size 4096, dst_buf.buf_size 4128
+[   88.703758] lz4e: compressed data into dst buffer: 26 bytes
+[   88.703759] lz4e: src_size: 4096, dst_size: 26, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.703760] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.703761] lz4e: src_size: 4096, dst_size: 26, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.703761] lz4e: remaining 4096
+[   88.703762] lz4e: remaining 0
+[   88.703762] lz4e: copied from buffer to bio: 4096 bytes
+[   88.703790] lz4e: write req init
+[   88.703791] lz4e: Adr for write: 8
+[   88.703792] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.703792] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.703816] lz4e: compressed data into dst buffer: 653 bytes
+[   88.703817] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.703817] lz4e: submitted bio request
+[   88.703819] lz4e: completed bio request
+[   88.711134] lz4e: read req init
+[   88.711143] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711145] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.711146] lz4e: str 140. src_data_size: 1024, dst_data_size: 0
+[   88.711148] lz4e: Adr for read: 0
+[   88.711149] lz4e: initialized read request
+[   88.711149] lz4e: submitted bio request
+[   88.711152] lz4e: completed read from underlying device
+[   88.711152] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711153] lz4e: src_buf.data 00000000670f4396, dst_buf.data 00000000ad105d46, src_buf.data_size 1024, dst_buf.buf_size 1044
+[   88.711157] lz4e: compressed data into dst buffer: 819 bytes
+[   88.711157] lz4e: src_size: 1024, dst_size: 819, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711159] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.711159] lz4e: src_size: 1024, dst_size: 819, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711160] lz4e: remaining 1024
+[   88.711160] lz4e: remaining 0
+[   88.711161] lz4e: copied from buffer to bio: 1024 bytes
+[   88.711246] lz4e: read req init
+[   88.711248] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711249] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.711250] lz4e: str 140. src_data_size: 1024, dst_data_size: 0
+[   88.711250] lz4e: Adr for read: 2
+[   88.711251] lz4e: initialized read request
+[   88.711251] lz4e: submitted bio request
+[   88.711252] lz4e: completed read from underlying device
+[   88.711252] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711253] lz4e: src_buf.data 00000000670f4396, dst_buf.data 00000000ad105d46, src_buf.data_size 1024, dst_buf.buf_size 1044
+[   88.711256] lz4e: compressed data into dst buffer: 838 bytes
+[   88.711256] lz4e: src_size: 1024, dst_size: 838, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711257] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.711258] lz4e: src_size: 1024, dst_size: 838, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711258] lz4e: remaining 1024
+[   88.711259] lz4e: remaining 0
+[   88.711259] lz4e: copied from buffer to bio: 1024 bytes
+[   88.711278] lz4e: read req init
+[   88.711279] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711280] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.711280] lz4e: str 140. src_data_size: 1024, dst_data_size: 0
+[   88.711281] lz4e: Adr for read: 4
+[   88.711281] lz4e: initialized read request
+[   88.711282] lz4e: submitted bio request
+[   88.711282] lz4e: completed read from underlying device
+[   88.711283] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711283] lz4e: src_buf.data 00000000670f4396, dst_buf.data 00000000ad105d46, src_buf.data_size 1024, dst_buf.buf_size 1044
+[   88.711286] lz4e: compressed data into dst buffer: 809 bytes
+[   88.711286] lz4e: src_size: 1024, dst_size: 809, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711287] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.711288] lz4e: src_size: 1024, dst_size: 809, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711288] lz4e: remaining 1024
+[   88.711289] lz4e: remaining 0
+[   88.711289] lz4e: copied from buffer to bio: 1024 bytes
+[   88.711305] lz4e: read req init
+[   88.711306] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711307] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.711307] lz4e: str 140. src_data_size: 1024, dst_data_size: 0
+[   88.711308] lz4e: Adr for read: 6
+[   88.711308] lz4e: initialized read request
+[   88.711309] lz4e: submitted bio request
+[   88.711309] lz4e: completed read from underlying device
+[   88.711310] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711310] lz4e: src_buf.data 00000000670f4396, dst_buf.data 00000000ad105d46, src_buf.data_size 1024, dst_buf.buf_size 1044
+[   88.711313] lz4e: compressed data into dst buffer: 829 bytes
+[   88.711314] lz4e: src_size: 1024, dst_size: 829, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711315] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.711315] lz4e: src_size: 1024, dst_size: 829, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711316] lz4e: remaining 1024
+[   88.711316] lz4e: remaining 0
+[   88.711316] lz4e: copied from buffer to bio: 1024 bytes
+[   88.711332] lz4e: read req init
+[   88.711333] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711333] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.711334] lz4e: str 140. src_data_size: 1024, dst_data_size: 0
+[   88.711334] lz4e: Adr for read: 8
+[   88.711335] lz4e: initialized read request
+[   88.711335] lz4e: submitted bio request
+[   88.711335] lz4e: completed read from underlying device
+[   88.711336] lz4e: src_size: 1024, dst_size: 1044, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711337] lz4e: src_buf.data 00000000670f4396, dst_buf.data 00000000ad105d46, src_buf.data_size 1024, dst_buf.buf_size 1044
+[   88.711339] lz4e: compressed data into dst buffer: 641 bytes
+[   88.711339] lz4e: src_size: 1024, dst_size: 641, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711340] lz4e: decompressed data into src buffer: 1024 bytes
+[   88.711341] lz4e: src_size: 1024, dst_size: 641, src_data: 00000000670f4396, dst_data 00000000ad105d46
+[   88.711341] lz4e: remaining 1024
+[   88.711342] lz4e: remaining 0
+[   88.711342] lz4e: copied from buffer to bio: 1024 bytes
+[   88.740790] lz4e: write req init
+[   88.740802] lz4e: Adr for write: 0
+[   88.740804] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.740806] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.740914] lz4e: compressed data into dst buffer: 2387 bytes
+[   88.740916] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.740918] lz4e: submitted bio request
+[   88.740921] lz4e: completed bio request
+[   88.741133] lz4e: write req init
+[   88.741138] lz4e: Adr for write: 8
+[   88.741139] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.741140] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.741223] lz4e: compressed data into dst buffer: 2449 bytes
+[   88.741224] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.741225] lz4e: submitted bio request
+[   88.741227] lz4e: completed bio request
+[   88.741230] lz4e: write req init
+[   88.741232] lz4e: Adr for write: 16
+[   88.741232] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.741233] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.741482] lz4e: compressed data into dst buffer: 2434 bytes
+[   88.741484] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.741485] lz4e: submitted bio request
+[   88.741487] lz4e: completed bio request
+[   88.741515] lz4e: write req init
+[   88.741517] lz4e: Adr for write: 24
+[   88.741518] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.741519] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.741601] lz4e: compressed data into dst buffer: 2489 bytes
+[   88.741603] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.741603] lz4e: submitted bio request
+[   88.741604] lz4e: completed bio request
+[   88.758999] lz4e: read req init
+[   88.759008] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759011] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.759011] lz4e: str 140. src_data_size: 4096, dst_data_size: 0
+[   88.759014] lz4e: Adr for read: 0
+[   88.759014] lz4e: initialized read request
+[   88.759015] lz4e: submitted bio request
+[   88.759018] lz4e: completed read from underlying device
+[   88.759018] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759019] lz4e: src_buf.data 0000000095e76a60, dst_buf.data 000000009db0e919, src_buf.data_size 4096, dst_buf.buf_size 4128
+[   88.759030] lz4e: compressed data into dst buffer: 2387 bytes
+[   88.759031] lz4e: src_size: 4096, dst_size: 2387, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759033] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.759033] lz4e: src_size: 4096, dst_size: 2387, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759034] lz4e: remaining 4096
+[   88.759034] lz4e: remaining 0
+[   88.759035] lz4e: copied from buffer to bio: 4096 bytes
+[   88.759070] lz4e: read req init
+[   88.759072] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759072] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.759073] lz4e: str 140. src_data_size: 4096, dst_data_size: 0
+[   88.759073] lz4e: Adr for read: 8
+[   88.759074] lz4e: initialized read request
+[   88.759074] lz4e: submitted bio request
+[   88.759076] lz4e: completed read from underlying device
+[   88.759076] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759120] lz4e: src_buf.data 0000000095e76a60, dst_buf.data 000000009db0e919, src_buf.data_size 4096, dst_buf.buf_size 4128
+[   88.759163] lz4e: compressed data into dst buffer: 2449 bytes
+[   88.759165] lz4e: src_size: 4096, dst_size: 2449, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759168] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.759169] lz4e: src_size: 4096, dst_size: 2449, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759170] lz4e: remaining 4096
+[   88.759170] lz4e: remaining 0
+[   88.759171] lz4e: copied from buffer to bio: 4096 bytes
+[   88.759243] lz4e: read req init
+[   88.759246] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759247] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.759247] lz4e: str 140. src_data_size: 4096, dst_data_size: 0
+[   88.759270] lz4e: Adr for read: 16
+[   88.759271] lz4e: initialized read request
+[   88.759271] lz4e: submitted bio request
+[   88.759274] lz4e: completed read from underlying device
+[   88.759274] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759275] lz4e: src_buf.data 0000000095e76a60, dst_buf.data 000000009db0e919, src_buf.data_size 4096, dst_buf.buf_size 4128
+[   88.759284] lz4e: compressed data into dst buffer: 2434 bytes
+[   88.759285] lz4e: src_size: 4096, dst_size: 2434, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759287] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.759287] lz4e: src_size: 4096, dst_size: 2434, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759288] lz4e: remaining 4096
+[   88.759288] lz4e: remaining 0
+[   88.759289] lz4e: copied from buffer to bio: 4096 bytes
+[   88.759317] lz4e: read req init
+[   88.759318] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759319] lz4e: src_data_size: 0, dst_data_size: 0
+[   88.759320] lz4e: str 140. src_data_size: 4096, dst_data_size: 0
+[   88.759320] lz4e: Adr for read: 24
+[   88.759320] lz4e: initialized read request
+[   88.759321] lz4e: submitted bio request
+[   88.759321] lz4e: completed read from underlying device
+[   88.759322] lz4e: src_size: 4096, dst_size: 4128, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759323] lz4e: src_buf.data 0000000095e76a60, dst_buf.data 000000009db0e919, src_buf.data_size 4096, dst_buf.buf_size 4128
+[   88.759332] lz4e: compressed data into dst buffer: 2489 bytes
+[   88.759333] lz4e: src_size: 4096, dst_size: 2489, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759335] lz4e: decompressed data into src buffer: 4096 bytes
+[   88.759335] lz4e: src_size: 4096, dst_size: 2489, src_data: 0000000095e76a60, dst_data 000000009db0e919
+[   88.759336] lz4e: remaining 4096
+[   88.759336] lz4e: remaining 0
+[   88.759337] lz4e: copied from buffer to bio: 4096 bytes
+[   88.946836] lz4e: module unloaded successfully
+[   88.969190] brd: module unloaded
