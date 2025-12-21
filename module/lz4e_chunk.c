@@ -25,11 +25,6 @@ void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src)
 	struct bio_vec bvec;
 	struct bvec_iter iter;
 
-	if (!dst || !dst->data || remaining == 0) {
-		dst->data_size = 0;
-		return;
-	}
-
 	bio_for_each_segment (bvec, src, iter) {
 		unsigned int copy_len =
 			min((unsigned int)remaining, bvec.bv_len);
@@ -54,10 +49,6 @@ void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
 	char *ptr = src->data;
 	struct bio_vec bvec;
 	struct bvec_iter iter;
-
-	if (!dst || !src || !src->data || remaining == 0) {
-		return;
-	}
 
 	bio_for_each_segment (bvec, dst, iter) {
 		unsigned int copy_len =
