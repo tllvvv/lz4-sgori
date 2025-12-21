@@ -50,6 +50,8 @@ void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
 	struct bio_vec bvec;
 	struct bvec_iter iter;
 
+	LZ4E_PR_INFO("remaining %d", remaining);
+
 	bio_for_each_segment (bvec, dst, iter) {
 		unsigned int copy_len =
 			min((unsigned int)remaining, bvec.bv_len);
@@ -58,6 +60,7 @@ void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
 
 		ptr += copy_len;
 		remaining -= copy_len;
+		LZ4E_PR_INFO("remaining %d", remaining);
 
 		if (remaining == 0)
 			break;
@@ -138,7 +141,10 @@ int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 	struct lz4e_buffer dst_buf = chunk->dst_buf;
 	void *wrkmem = chunk->wrkmem;
 	int ret;
-
+	LZ4E_PR_INFO(
+		"src_buf.data %p, dst_buf.data %p, src_buf.data_size %d, dst_buf.buf_size %d",
+		src_buf.data, dst_buf.data, src_buf.data_size,
+		dst_buf.buf_size);
 	ret = LZ4_compress_default(src_buf.data, dst_buf.data,
 				   src_buf.data_size, dst_buf.buf_size, wrkmem);
 	if (!ret) {
@@ -148,7 +154,7 @@ int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 
 	chunk->dst_buf.data_size = ret;
 
-	LZ4E_PR_DEBUG("compressed data into dst buffer: %d bytes", ret);
+	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
 	return 0;
 }
 
@@ -166,7 +172,7 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk)
 	}
 	chunk->src_buf.data_size = ret;
 
-	LZ4E_PR_DEBUG("decompressed data into src buffer: %d bytes", ret);
+	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
 	return 0;
 }
 
@@ -188,7 +194,7 @@ int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk)
 
 	chunk->dst_buf.data_size = ret;
 
-	LZ4E_PR_DEBUG("compressed data into dst buffer: %d bytes", ret);
+	LZ4E_PR_INFO("compressed data into dst buffer: %d bytes", ret);
 	return 0;
 }
 
