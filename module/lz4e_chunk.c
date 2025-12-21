@@ -118,8 +118,6 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		LZ4E_PR_ERR("failed to allocate src buffer");
 		goto free_chunk;
 	}
-	chunk->src_buf.buf_size = src_size;
-	chunk->src_buf.data_size = 0;
 
 	dst_data = kzalloc((size_t)dst_size, GFP_NOIO);
 	lz4e_buffer_init(&chunk->dst_buf, dst_data, dst_size);
@@ -127,8 +125,6 @@ struct lz4e_chunk *lz4e_chunk_alloc(int src_size)
 		LZ4E_PR_ERR("failed to allocate dst buffer");
 		goto free_chunk;
 	}
-	chunk->dst_buf.buf_size = dst_size;
-	chunk->dst_buf.data_size = 0;
 
 	wrkmem = kzalloc(LZ4E_MEM_COMPRESS, GFP_NOIO);
 	chunk->wrkmem = wrkmem;
