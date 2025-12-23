@@ -288,25 +288,41 @@ static void lz4e_end_io_read(struct bio *new_bio)
 	stats_to_update = lzreq->stats_to_update;
 
 	lz4e_stats_update(stats_to_update, new_bio);
+	lz4e_buf_copy_from_bio(&chunk->src_buf, new_bio);
 
 	LZ4E_PR_INFO("completed read from underlying device");
 	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
 		     chunk->src_buf.data_size, chunk->dst_buf.buf_size,
 		     chunk->src_buf.data, chunk->dst_buf.data);
+
 	ret = lz4e_chunk_compress(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("compression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
+		goto out;
 	}
+
 	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
 		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
 		     chunk->src_buf.data, chunk->dst_buf.data);
+
+	kfree(chunk->src_buf.data);
+	chunk->src_buf.data = NULL;
+	chunk->src_buf.data_size = 0;
+
+	chunk->src_buf.data = kzalloc(chunk->src_buf.buf_size, GFP_NOIO);
+	if (!chunk->src_data) {
+		LZ4E_PR_ERR("failed to allocate src buffer");
+		goto out;
+	}
 
 	ret = lz4e_chunk_decompress_ext(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("decompression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
+		goto out;
 	}
+
 	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
 		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
 		     chunk->src_buf.data, chunk->dst_buf.data);
@@ -315,7 +331,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 
 	original_bio->bi_status = new_bio->bi_status;
 	bio_endio(original_bio);
-
+out:
 	bio_put(new_bio);
 	lz4e_req_free(lzreq);
 }
