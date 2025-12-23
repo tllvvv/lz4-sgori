@@ -311,7 +311,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 	chunk->src_buf.data_size = 0;
 
 	chunk->src_buf.data = kzalloc(chunk->src_buf.buf_size, GFP_NOIO);
-	if (!chunk->src_data) {
+	if (!chunk->src_buf.data) {
 		LZ4E_PR_ERR("failed to allocate src buffer");
 		goto out;
 	}
