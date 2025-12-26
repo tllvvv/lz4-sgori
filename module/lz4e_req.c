@@ -264,7 +264,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 
 	lz4e_stats_update(stats_to_update, new_bio);
 
-	/*ret = lz4e_chunk_compress(chunk);
+	ret = lz4e_chunk_compress(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("compression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
@@ -274,7 +274,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 	if (ret) {
 		LZ4E_PR_ERR("decompression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
-	}*/
+	}
 
 	lz4e_buf_copy_to_bio(original_bio, &chunk->src_buf);
 
