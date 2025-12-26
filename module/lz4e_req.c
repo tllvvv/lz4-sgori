@@ -137,23 +137,14 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 		status = BLK_STS_RESOURCE;
 		goto free_chunk;
 	}
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.buf_size, chunk->dst_buf.buf_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
-	LZ4E_PR_INFO("src_data_size: %d, dst_data_size: %d",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size);
-
 	chunk->src_buf.data_size = (int)original_bio->bi_iter.bi_size;
-	LZ4E_PR_INFO("str 140. src_data_size: %d, dst_data_size: %d",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size);
+
 	new_bio = lz4e_alloc_new_bio(original_bio, lzdev->under_dev);
 	if (!new_bio) {
 		LZ4E_PR_ERR("failed to allocate new bio");
 		status = BLK_STS_RESOURCE;
 		goto free_chunk;
 	}
-	LZ4E_PR_INFO("Adr for read: %d", (int)new_bio->bi_iter.bi_sector);
-	new_bio->bi_iter.bi_size = original_bio->bi_iter.bi_size;
 	int ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
 	if (ret) {
 		LZ4E_PR_ERR("failed to add buffer to new bio");
@@ -198,7 +189,7 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 		status = BLK_STS_RESOURCE;
 		goto free_chunk;
 	}
-	LZ4E_PR_INFO("Adr for write: %d", (int)new_bio->bi_iter.bi_sector);
+
 	ret = lz4e_add_buf_to_bio(new_bio, &chunk->dst_buf);
 	if (ret) {
 		LZ4E_PR_ERR("failed to add dst buffer to bio");
@@ -208,12 +199,6 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 
 	chunk->src_buf.bio = original_bio;
 	chunk->dst_buf.bio = new_bio;
-
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.buf_size, chunk->dst_buf.buf_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
-	LZ4E_PR_INFO("src_data_size: %d, dst_data_size: %d",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size);
 
 	ret = lz4e_chunk_compress_ext(chunk);
 	if (ret) {
@@ -272,66 +257,32 @@ blk_status_t lz4e_req_init(struct lz4e_req *lzreq, struct bio *original_bio,
 static void lz4e_end_io_read(struct bio *new_bio)
 {
 	struct lz4e_req *lzreq = new_bio->bi_private;
-	struct bio *original_bio;
-	struct lz4e_chunk *chunk;
-	struct lz4e_stats *stats_to_update;
+	struct bio *original_bio = lzreq->original_bio;
+	struct lz4e_stats *stats_to_update = lzreq->stats_to_update;
+	struct lz4e_chunk *chunk = lzreq->chunk;
 	int ret;
 
-	if (!lzreq) {
-		LZ4E_PR_ERR("end_io_read: null lzreq");
-		bio_put(new_bio);
-		return;
-	}
-
-	chunk = lzreq->chunk;
-	original_bio = lzreq->original_bio;
-	stats_to_update = lzreq->stats_to_update;
-
 	lz4e_stats_update(stats_to_update, new_bio);
-	lz4e_buf_copy_from_bio(&chunk->src_buf, new_bio);
 
-	LZ4E_PR_INFO("completed read from underlying device");
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.data_size, chunk->dst_buf.buf_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
-
-	ret = lz4e_chunk_compress(chunk);
+	/*ret = lz4e_chunk_compress(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("compression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
-		goto out;
-	}
-
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
-
-	kfree(chunk->src_buf.data);
-	chunk->src_buf.data = NULL;
-	chunk->src_buf.data_size = 0;
-
-	chunk->src_buf.data = kzalloc(chunk->src_buf.buf_size, GFP_NOIO);
-	if (!chunk->src_buf.data) {
-		LZ4E_PR_ERR("failed to allocate src buffer");
-		goto out;
 	}
 
 	ret = lz4e_chunk_decompress_ext(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("decompression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
-		goto out;
-	}
-
-	LZ4E_PR_INFO("src_size: %d, dst_size: %d, src_data: %p, dst_data %p",
-		     chunk->src_buf.data_size, chunk->dst_buf.data_size,
-		     chunk->src_buf.data, chunk->dst_buf.data);
+	}*/
 
 	lz4e_buf_copy_to_bio(original_bio, &chunk->src_buf);
 
+	LZ4E_PR_INFO("completed bio request");
+
 	original_bio->bi_status = new_bio->bi_status;
 	bio_endio(original_bio);
-out:
+
 	bio_put(new_bio);
 	lz4e_req_free(lzreq);
 }

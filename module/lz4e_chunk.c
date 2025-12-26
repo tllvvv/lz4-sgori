@@ -20,55 +20,34 @@
 
 void lz4e_buf_copy_from_bio(struct lz4e_buffer *dst, struct bio *src)
 {
-	size_t remaining = src->bi_iter.bi_size;
 	char *ptr = dst->data;
 	struct bio_vec bvec;
 	struct bvec_iter iter;
 
 	bio_for_each_segment (bvec, src, iter) {
-		unsigned int copy_len =
-			min((unsigned int)remaining, bvec.bv_len);
-
 		memcpy_from_bvec(ptr, &bvec);
-
-		ptr += copy_len;
-		remaining -= copy_len;
-
-		if (remaining == 0)
-			break;
+		ptr += bvec.bv_len;
 	}
 
-	dst->data_size = (int)(src->bi_iter.bi_size - remaining);
+	dst->data_size = (int)src->bi_iter.bi_size;
 
-	LZ4E_PR_INFO("copied from bio to src buffer: %d bytes", dst->data_size);
+	LZ4E_PR_DEBUG("copied from bio to src buffer");
 }
 
 void lz4e_buf_copy_to_bio(struct bio *dst, struct lz4e_buffer *src)
 {
-	size_t remaining = src->data_size;
 	char *ptr = src->data;
 	struct bio_vec bvec;
 	struct bvec_iter iter;
 
-	LZ4E_PR_INFO("remaining %d", remaining);
-
 	bio_for_each_segment (bvec, dst, iter) {
-		unsigned int copy_len =
-			min((unsigned int)remaining, bvec.bv_len);
-
 		memcpy_to_bvec(&bvec, ptr);
-
-		ptr += copy_len;
-		remaining -= copy_len;
-		LZ4E_PR_INFO("remaining %d", remaining);
-
-		if (remaining == 0)
-			break;
+		ptr += bvec.bv_len;
 	}
 
-	src->data_size = (int)(src->data_size - remaining);
+	dst->bi_iter.bi_size = src->data_size;
 
-	LZ4E_PR_INFO("copied from buffer to bio: %d bytes", src->data_size);
+	LZ4E_PR_DEBUG("copied from src buffer to bio");
 }
 
 void lz4e_chunk_free(struct lz4e_chunk *chunk)
@@ -141,10 +120,7 @@ int lz4e_chunk_compress(struct lz4e_chunk *chunk)
 	struct lz4e_buffer dst_buf = chunk->dst_buf;
 	void *wrkmem = chunk->wrkmem;
 	int ret;
-	LZ4E_PR_INFO(
-		"src_buf.data %p, dst_buf.data %p, src_buf.data_size %d, dst_buf.buf_size %d",
-		src_buf.data, dst_buf.data, src_buf.data_size,
-		dst_buf.buf_size);
+
 	ret = LZ4_compress_default(src_buf.data, dst_buf.data,
 				   src_buf.data_size, dst_buf.buf_size, wrkmem);
 	if (!ret) {
@@ -170,6 +146,8 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk)
 		LZ4E_PR_ERR("failed to decompress data");
 		return -EIO;
 	}
+
+	BUG_ON(ret != src_buf.buf_size);
 	chunk->src_buf.data_size = ret;
 
 	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
