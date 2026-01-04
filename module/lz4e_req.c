@@ -129,8 +129,6 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 	struct lz4e_chunk *chunk;
 	blk_status_t status;
 
-	LZ4E_PR_INFO("read req init");
-
 	chunk = lz4e_chunk_alloc((int)original_bio->bi_iter.bi_size);
 	if (!chunk) {
 		LZ4E_PR_ERR("failed to allocate chunk");
@@ -145,6 +143,7 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 		status = BLK_STS_RESOURCE;
 		goto free_chunk;
 	}
+
 	int ret = lz4e_add_buf_to_bio(new_bio, &chunk->src_buf);
 	if (ret) {
 		LZ4E_PR_ERR("failed to add buffer to new bio");
@@ -158,7 +157,7 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 	lzreq->stats_to_update = stats_to_update;
 	lzreq->chunk = chunk;
 
-	LZ4E_PR_INFO("initialized read request");
+	LZ4E_PR_DEBUG("initialized read request");
 	return BLK_STS_OK;
 
 free_chunk:
@@ -175,7 +174,6 @@ static blk_status_t lz4e_write_req_init(struct lz4e_req *lzreq,
 	struct bio *new_bio;
 	blk_status_t status;
 	int ret;
-	LZ4E_PR_INFO("write req init");
 
 	chunk = lz4e_chunk_alloc((int)original_bio->bi_iter.bi_size);
 	if (!chunk) {
