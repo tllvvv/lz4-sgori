@@ -178,5 +178,21 @@ int lz4e_chunk_compress_ext(struct lz4e_chunk *chunk)
 
 int lz4e_chunk_decompress_ext(struct lz4e_chunk *chunk)
 {
-	return lz4e_chunk_decompress(chunk);
+	struct bio *src_bio = chunk->src_buf.bio;
+	struct bio *dst_bio = chunk->dst_buf.bio;
+	struct bvec_iter src_iter = src_bio->bi_iter;
+	struct bvec_iter dst_iter = dst_bio->bi_iter;
+	int ret;
+
+	ret = LZ4E_decompress_safe(dst_bio->bi_io_vec, src_bio->bi_io_vec,
+				   &dst_iter, &src_iter);
+	if (!ret) {
+		LZ4E_PR_ERR("failed to compress data");
+		return -EIO;
+	}
+
+	chunk->src_buf.data_size = ret;
+
+	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);
+	return 0;
 }
