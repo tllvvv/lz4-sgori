@@ -147,7 +147,6 @@ int lz4e_chunk_decompress(struct lz4e_chunk *chunk)
 		return -EIO;
 	}
 
-	BUG_ON(ret != src_buf.buf_size);
 	chunk->src_buf.data_size = ret;
 
 	LZ4E_PR_INFO("decompressed data into src buffer: %d bytes", ret);

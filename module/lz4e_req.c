@@ -150,9 +150,6 @@ static blk_status_t lz4e_read_req_init(struct lz4e_req *lzreq,
 		LZ4E_PR_ERR("failed to add buffer to new bio");
 	}
 
-	chunk->dst_buf.bio = original_bio;
-	chunk->src_buf.bio = new_bio;
-
 	lzreq->original_bio = original_bio;
 	lzreq->new_bio = new_bio;
 	lzreq->stats_to_update = stats_to_update;
@@ -262,6 +259,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 	struct bio *original_bio = lzreq->original_bio;
 	struct lz4e_stats *stats_to_update = lzreq->stats_to_update;
 	struct lz4e_chunk *chunk = lzreq->chunk;
+	unsigned int comp_size;
 	int ret;
 
 	lz4e_stats_update(stats_to_update, new_bio);
@@ -271,7 +269,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 		LZ4E_PR_ERR("compression failed in end_io_read");
 		original_bio->bi_status = BLK_STS_IOERR;
 	}
-
+	comp_size = chunk->dst_buf.data_size;
 	lz4e_reset_bio(new_bio, original_bio, lzreq->under_dev);
 
 	ret = lz4e_add_buf_to_bio(new_bio, &chunk->dst_buf);
@@ -282,6 +280,7 @@ static void lz4e_end_io_read(struct bio *new_bio)
 	chunk->dst_buf.bio = new_bio;
 	chunk->src_buf.bio = original_bio;
 
+	new_bio->bi_iter.bi_size = comp_size;
 	ret = lz4e_chunk_decompress_ext(chunk);
 	if (ret) {
 		LZ4E_PR_ERR("decompression failed in end_io_read");
