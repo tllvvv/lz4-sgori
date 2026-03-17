@@ -57,6 +57,7 @@ Signature of the most commonly used [LZ4 function for compression](https://elixi
  */
 int LZ4_decompress_safe(const char *source, char *dest, int compressedSize,
 	int maxDecompressedSize)
+```
 
 ## Extended LZ4
 
