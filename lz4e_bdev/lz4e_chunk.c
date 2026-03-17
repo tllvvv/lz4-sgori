@@ -183,7 +183,7 @@ int lz4e_chunk_decompress_ext(struct lz4e_chunk *chunk)
 
 	ret = LZ4E_decompress_safe(dst_bio->bi_io_vec, src_bio->bi_io_vec,
 				   &dst_iter, &src_iter);
-	if (!ret) {
+	if (ret <= 0) {
 		LZ4E_PR_ERR("failed to decompress data");
 		return -EIO;
 	}

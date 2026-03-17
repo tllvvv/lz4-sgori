@@ -489,6 +489,6 @@ int LZ4E_decompress_safe(const struct bio_vec *src, struct bio_vec *dst,
 }
 EXPORT_SYMBOL(LZ4E_decompress_safe);
 
-MODULE_AUTHOR("");
+MODULE_AUTHOR("Tarkovskaya Valeriya");
 MODULE_DESCRIPTION("LZ4 decompression for scatter-gather buffers");
 MODULE_LICENSE("GPL");
