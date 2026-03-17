@@ -21,6 +21,7 @@ struct lz4e_req {
 	struct bio *new_bio;
 	struct lz4e_stats *stats_to_update;
 	struct lz4e_chunk *chunk;
+	struct lz4e_under_dev *under_dev;
 } LZ4E_ALIGN_32;
 
 // Allocate request context
