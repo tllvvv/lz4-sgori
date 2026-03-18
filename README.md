@@ -26,6 +26,19 @@ int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
 		struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem);
 ```
 
+Signature of the modified decompression function, which handles sequences of `struct bio_vec` instead of contiguous buffers:
+```c
+/*
+ * src: source buffer as a list of bio_vec's
+ * dst: destination buffer as a list of bio_vec's
+ * srcIter: iterator into 'src' at the start of data to compress
+ * dstIter: iterator into 'dst' starting from which the bytes are written
+ * returns: number of bytes written to 'dst', or a negative value if decompression failed
+ */
+int LZ4E_decompress_safe(const struct bio_vec *src, struct bio_vec *dst,
+			 struct bvec_iter *srcIter, struct bvec_iter *dstIter);
+```
+
 See more details: [doc/API.md](doc/API.md).
 
 ## Requirements
@@ -83,4 +96,5 @@ Some tests use [fio](https://fio.readthedocs.io/en/latest/fio_doc.html) utility,
 ## Implementation details
 
 Detailed implementation description can be found at: [doc/Compression.md](doc/Compression.md).
+Detailed implementation description can be found at: [doc/Decompression.md](doc/Decompression.md).
 Essentially, we replace all uses of pointer arithmetic in favor of using `struct bio_vec` iterators to access and modify the data.

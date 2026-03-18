@@ -2,8 +2,7 @@
 
 This page describes the interface of extended LZ4 implementation for the Linux Kernel and differentiates it from the standard one.
 
-## Standard LZ4
-
+## Standard LZ4 Compression
 The standard implementation of LZ4 in the Linux Kernel only handles contiguous buffers. For handling fragmented data there are several workarounds:
 1) Copying the data into a preallocated contiguous buffer.
 
@@ -37,9 +36,32 @@ Compression requires roughly 16 KB of additional memory (`wrkmem`), as provided 
 Size limit for compressed data can be found from the input size using macro
 [`LZ4_COMPRESSBOUND`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/lz4.h#L61).
 
+## Standard LZ4 Decompression
+
+The standard implementation of LZ4 decompression in the Linux Kernel only handles contiguous buffers. There is an option for processing fragmented data:
+
+1) Copying the data into a preallocated contiguous buffer. This would require allocating a big enough chunk of memory to accommodate the compressed source data, which could cause issues for large datasets.
+Although this method is easy to implement, allocation of contiguous memory followed by decompression would have a significant effect on performance and memory consumption.
+
+Signature of the most commonly used [LZ4 function for compression](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/lz4.h#L273) is as follows:
+```c
+/**
+ * LZ4_decompress_safe() - Decompression protected against buffer overflow
+ * source: source address of the compressed data
+ * dest: output buffer address of the uncompressed data
+ *	which must be already allocated
+ * compressedSize: is the precise full size of the compressed block
+ * maxDecompressedSize: is the size of 'dest' buffer
+ * Return: number of bytes decompressed into destination buffer
+ * or a negative result in case of error
+ */
+int LZ4_decompress_safe(const char *source, char *dest, int compressedSize,
+	int maxDecompressedSize)
+```
+
 ## Extended LZ4
 
-This repo provides an implementation of LZ4 compression for the Linux Kernel, extended for managing scatter-gather buffers.
+This repo provides an implementation of LZ4 compression/decompression for the Linux Kernel, extended for managing scatter-gather buffers.
 This means that instead of only handling contiguous buffers, this implementation rather works with sequences of
 contiguous segments that can be arbitrarily located. In the Linux Kernel, a single segment as such is represented with
 [`struct bio_vec`](https://elixir.bootlin.com/linux/v6.16.9/source/include/linux/bvec.h#L19):
@@ -93,6 +115,18 @@ Finally, signature of the modified LZ4 compression function is as follows:
  */
 int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
 		struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem);
+```
+Signature of the modified LZ4 decompression function is as follows:
+```c
+/*
+ * src: source buffer as a list of bio_vec's
+ * dst: destination buffer as a list of bio_vec's
+ * srcIter: iterator into 'src' at the start of data to compress
+ * dstIter: iterator into 'dst' starting from which the bytes are written
+ * returns: number of bytes written to 'dst', or a negative value if decompression failed
+ */
+int LZ4E_decompress_safe(const struct bio_vec *src, struct bio_vec *dst,
+			 struct bvec_iter *srcIter, struct bvec_iter *dstIter);
 ```
 
 Input and maximum output sizes here are discovered through `srcIter` and `dstIter` respectively.

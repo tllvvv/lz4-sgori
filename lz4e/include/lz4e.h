@@ -5,7 +5,6 @@
 #include <linux/types.h>
 
 #define LZ4E_NAME "lz4e"
-
 #define LZ4E_ACCELERATION_DEFAULT 1
 
 #define LZ4E_MEMORY_USAGE	14
@@ -45,10 +44,11 @@ typedef union {
 } LZ4E_stream_t;
 
 int LZ4E_compress_default(const struct bio_vec *src, struct bio_vec *dst,
-		struct bvec_iter *srcIter, struct bvec_iter *dstIter, void *wrkmem);
+			  struct bvec_iter *srcIter, struct bvec_iter *dstIter,
+			  void *wrkmem);
 
-int LZ4E_decompress_safe(const char *source, char *dest,
-		int compressedSize, int maxDecompressedSize);
+int LZ4E_decompress_safe(const struct bio_vec *src, struct bio_vec *dst,
+			 struct bvec_iter *srcIter, struct bvec_iter *dstIter);
 
 #ifndef LZ4E_DISTANCE_MAX	/* history window size; can be user-defined at compile time */
 #define LZ4E_DISTANCE_MAX 65535	/* set to maximum value by default */
